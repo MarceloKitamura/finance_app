@@ -1,202 +1,412 @@
-# 💰 Finance App
+# Finance App
 
-Sistema financeiro pessoal em Python com **duas interfaces** e **IA de categorização**.
+Sistema de gestão financeira pessoal em Python com múltiplas interfaces, IA de categorização e análise inteligente. Suporta CLI, web (Streamlit e HTML/CSS/JS puro), e API REST (FastAPI) com um núcleo compartilhado de lógica de negócio.
 
-- 🖥️ **CLI** (terminal) — Fase 1
-- 🌐 **Streamlit** (navegador) — Fase 2 e 2.5
-- 🤖 **IA** que sugere categorias automaticamente — Fase 2.5
+## Visão Geral
 
-Todas as interfaces compartilham o mesmo núcleo: services, repositories e banco SQLite.
+**Finance App** oferece:
+
+- **CLI** (linha de comando) — para uso rápido e scripting
+- **Streamlit** — dashboard interativo com gráficos Plotly
+- **API REST** (FastAPI) — para integração com frontends customizados
+- **Frontend web** — HTML/CSS/JS puro consumindo a API
+- **IA de categorização** — sugestão automática de categoria com padrões offline + LLM opcional
+- **Análise financeira** — consultor inteligente com alertas, conselhos e insights
+- **Multi-contas** — suporte a múltiplas carteiras/contas
+- **Cartões de crédito** — rastreamento de fatura, limite e vencimento
+- **Metas financeiras** — limites de gasto, objetivos de poupança, controle de dívidas
+
+Todas as interfaces compartilham o mesmo **core de serviços, repositórios e banco de dados** SQLite.
 
 ---
 
-## 🚀 Início rápido
+## Quick Start
+
+### Setup
 
 ```bash
-# 1. Instale as dependências
+# 1. Crie o ambiente virtual
+python -m venv .venv
+
+# 2. Ative (Windows)
+.\.venv\Scripts\activate
+# Ou (Linux/Mac)
+source .venv/bin/activate
+
+# 3. Instale dependências
 pip install -r requirements.txt
 
-# 2a. Rode a versão WEB (recomendado)
-streamlit run run_streamlit.py
-
-# 2b. OU rode a versão TERMINAL
-python -m app.main
+# 4. Defina encoding para suportar UTF-8 (Windows)
+set PYTHONIOENCODING=utf-8
 ```
 
-A versão web abre em `http://localhost:8501`.
+### Rode a aplicação
 
-> 📚 **Está aprendendo?** Comece pelo arquivo `STUDY_GUIDE.md` — tem um cronograma
-> passo a passo. Para praticar, veja `CHALLENGES.md`.
+```bash
+# Opção 1: CLI (terminal)
+python -m app.main
+
+# Opção 2: Streamlit (web interativo)
+streamlit run run_streamlit.py
+
+# Opção 3: API REST
+python run_api.py
+# Acesse http://127.0.0.1:8000/docs (Swagger)
+
+# Opção 4: Frontend web (consumindo a API)
+# Abra em navegador: file:///caminho/para/frontend/index.html
+# Ou sirva com Python: python -m http.server --directory frontend 8080
+```
 
 ---
 
-## 📂 Estrutura
+## Estrutura do Projeto
 
 ```
 finance_app/
 ├── app/
-│   ├── main.py                     # Entrypoint da CLI
-│   ├── database.py                 # Conexão SQLite
-│   ├── config.py                   # Caminhos e pastas
+│   ├── main.py                           # CLI entrypoint
+│   ├── database.py                       # SQLite setup
+│   ├── config.py                         # Paths e configuração
 │   │
-│   ├── models/                     # Entidades (Transaction)
-│   ├── repositories/               # Acesso ao banco (único lugar com SQL)
-│   ├── services/                   # Regras de negócio (compartilhadas)
+│   ├── models/
+│   │   ├── transaction.py
+│   │   ├── account.py
+│   │   ├── card.py
+│   │   └── goal.py
+│   │
+│   ├── repositories/                     # Data access (único lugar com SQL)
+│   │   ├── transaction_repository.py
+│   │   ├── account_repository.py
+│   │   ├── card_repository.py
+│   │   └── goal_repository.py
+│   │
+│   ├── services/                         # Business logic (compartilhado)
 │   │   ├── transaction_service.py
 │   │   ├── report_service.py
-│   │   ├── export_service.py
-│   │   ├── chart_service.py
-│   │   ├── ai_service.py           # 🤖 IA de categorização
-│   │   └── financial_advisor_service.py  # 🧠 IA consultora (insights)
+│   │   ├── account_service.py
+│   │   ├── card_service.py
+│   │   ├── goal_service.py
+│   │   ├── ai_service.py                 # IA de categorização
+│   │   ├── financial_advisor_service.py  # Análise e alertas
+│   │   ├── alert_service.py              # Agregador de alertas
+│   │   └── export_service.py
 │   │
-│   ├── constants/                  # Categorias, pagamentos, tipos, patterns
+│   ├── constants/
 │   │   ├── categories.py
 │   │   ├── payment_methods.py
 │   │   ├── transaction_types.py
-│   │   └── category_patterns.py    # 🤖 palavras-chave da IA
+│   │   └── category_patterns.py          # Padrões para IA
 │   │
 │   ├── interfaces/
-│   │   ├── cli.py                  # Interface terminal
-│   │   ├── prompts.py              # Helpers de input da CLI
-│   │   └── streamlit_app.py        # Interface web (Plotly + IA)
+│   │   ├── cli.py                        # Menu terminal
+│   │   ├── prompts.py                    # Input helpers
+│   │   └── streamlit_app.py              # Dashboard Streamlit
 │   │
-│   └── utils/                      # date_utils, money_utils, normalizers, logger
+│   ├── api/                              # FastAPI
+│   │   ├── main.py                       # App FastAPI
+│   │   ├── schemas.py                    # Pydantic models
+│   │   └── routers/
+│   │       ├── transactions.py
+│   │       ├── accounts.py
+│   │       ├── cards.py
+│   │       ├── goals.py
+│   │       ├── alerts.py
+│   │       ├── reports.py
+│   │       └── ai.py
+│   │
+│   └── utils/
+│       ├── date_utils.py
+│       ├── money_utils.py
+│       ├── normalizers.py
+│       └── logger.py
+│
+├── frontend/
+│   ├── index.html                        # Home/Dashboard
+│   ├── pages/
+│   │   ├── transacoes.html
+│   │   ├── cartoes.html
+│   │   ├── metas.html
+│   │   ├── alertas.html
+│   │   ├── relatorios.html
+│   │   └── configuracoes.html
+│   │
+│   ├── js/
+│   │   ├── api.js                        # Chamadas HTTP
+│   │   ├── ui.js                         # Componentes UI
+│   │   ├── app.js                        # Lógica principal
+│   │   ├── theme.js                      # Tema claro/escuro
+│   │   └── utils.js                      # Helpers
+│   │
+│   └── css/
+│       ├── style.css                     # Base
+│       └── light-theme.css               # Tema claro
 │
 ├── .streamlit/
-│   └── config.toml                 # 🎨 tema visual (cores)
+│   └── config.toml                       # Tema Streamlit
 │
-├── data/                           # Criado em runtime
-│   ├── database.db                 # Banco SQLite
-│   ├── exports/                    # Excels exportados
-│   └── charts/                     # Gráficos PNG
-├── logs/                           # app.log
+├── data/
+│   ├── database.db                       # SQLite (criado em runtime)
+│   └── exports/                          # Arquivos exportados
 │
-├── run_streamlit.py                # Launcher do Streamlit
+├── logs/
+│   └── app.log
+│
+├── run_streamlit.py
+├── run_api.py
 ├── requirements.txt
-├── STUDY_GUIDE.md                  # 📚 cronograma de estudo
-├── CHALLENGES.md                   # 🎯 desafios de prática
+├── STUDY_GUIDE.md
+├── CHALLENGES.md
 └── README.md
 ```
 
 ---
 
-## 🤖 Como funciona a IA
+## Arquitetura
 
-Ao digitar a descrição de uma transação, a IA sugere a categoria automaticamente.
+```
+┌─────────────────────────────────────────┐
+│  CLI  │ Streamlit │ API REST │ Frontend  │
+└──────────────┬──────────────────────────┘
+               │
+       ┌───────▼──────────┐
+       │    Services      │
+       │ (lógica negócio) │
+       └───────┬──────────┘
+               │
+       ┌───────▼──────────────┐
+       │   Repositories       │
+       │  (acesso a dados)    │
+       └───────┬──────────────┘
+               │
+        ┌──────▼─────────┐
+        │   SQLite DB    │
+        └────────────────┘
+```
 
-Ela trabalha em **duas camadas**:
+**Princípio:** Services e Repositories são agnósticos de interface. Qualquer novo client (CLI, web, mobile) reutiliza o core sem mudanças.
 
-1. **Palavras-chave (offline, grátis)** — reconhece termos como "mercado", "uber",
-   "netflix" e sugere a categoria. Funciona sem internet, cobre a maioria dos casos.
+---
 
-2. **LLM / ChatGPT (opcional)** — se você configurar uma API key, casos que as
-   palavras-chave não pegam são enviados para uma IA mais poderosa.
+## Recursos
 
-**Para usar só patterns (padrão):** não precisa fazer nada, já funciona.
+### IA de Categorização
 
-**Para ativar o LLM:**
+Ao adicionar uma transação, a IA sugere automaticamente a categoria:
+
+1. **Offline (padrão)** — reconhece palavras-chave ("mercado", "uber", "netflix") via `category_patterns.py`. Rápido, privado, sem custo.
+
+2. **LLM (opcional)** — para descrições que não casam com padrões, consulta uma IA remota (OpenAI, Groq, etc).
+
+Ativar LLM:
 ```bash
 pip install openai
-export OPENAI_API_KEY="sua-chave"     # Linux/Mac
-set OPENAI_API_KEY=sua-chave           # Windows
+set OPENAI_API_KEY=sk-...
 streamlit run run_streamlit.py
 ```
 
-A barra lateral mostra o status: `🤖 IA: patterns (offline)` ou `patterns + LLM ativo`.
+Ou com Groq:
+```bash
+set GROQ_API_KEY=gsk-...
+python run_api.py
+```
+
+### Análise Financeira (Financial Advisor)
+
+Consultor inteligente que analisa seu histórico e gera:
+
+- **Alertas** — saldo negativo, cartão acima de 80%, meta estourada, mês no vermelho
+- **Conselhos** — onde economizar, gastos concentrados, padrões de consumo
+- **Resumo** — taxa de poupança, evolução, principais despesas
+
+Roda 100% offline, com regras + estatística. Dados nunca deixam seu computador.
+
+### Multi-Contas
+
+Gerencie múltiplas carteiras/contas:
+- Cada transação está ligada a uma conta
+- Saldo calculado automaticamente (inicial + receitas - despesas)
+- Relatórios por conta
+- Dashboard com cards de cada conta
+
+### Cartões de Crédito
+
+Rastreie fatura, limite de crédito e vencimento:
+- Visualize transações por cartão
+- Veja fatura do mês e uso do limite
+- Alertas para cartões vencidos ou acima de 80%
+
+### Metas Financeiras
+
+Três tipos de meta:
+
+1. **Limite de gasto** — defina máximo para uma categoria/mês
+2. **Poupança** — objetivo de valor a poupar
+3. **Dívida** — controle de empréstimos/cartão rotativo
+
+Barra de progresso e alertas automáticos.
 
 ---
 
-## 🧠 Consultor IA (análise financeira)
+## Guia de Uso
 
-Além de categorizar, o app tem um **consultor financeiro** que analisa seus dados
-e gera conselhos automaticamente. Ele aparece no topo do **Dashboard**.
-
-O consultor gera três tipos de insight:
-
-- **🚨 Alertas** — avisa quando algo precisa de atenção (gastou mais do que ganhou,
-  categoria muito acima da média dos meses anteriores)
-- **💡 Conselhos de economia** — onde dá para cortar (assinaturas pesando, gastos
-  concentrados numa categoria, dicas práticas)
-- **📋 Resumo e análise** — visão geral do mês (taxa de poupança, maior despesa)
-
-Como funciona (por dentro): o consultor usa **regras + estatística** sobre seu
-histórico. Por exemplo, compara o gasto de cada categoria com a média dos 3 meses
-anteriores e alerta se houver um estouro. **Tudo offline e privado** — seus dados
-nunca saem do seu computador.
-
-A arquitetura já está **preparada para LLM** (o método `_refine_with_llm` é um
-gancho pronto), mas por padrão roda 100% offline.
-
----
-
-## 🌐 Páginas do Streamlit
-
-| Página | O que faz |
-|---|---|
-| **📊 Dashboard** | KPIs, comparativo receitas vs despesas, donuts de categoria e pagamento, maior despesa do mês |
-| **➕ Adicionar** | Formulário com **sugestão de IA** em tempo real |
-| **📋 Transações** | Lista com filtros: mês, tipo, categoria, pagamento + resumo do filtro |
-| **📈 Relatórios** | Despesas por categoria com %, evolução de 6 meses (gráfico de linha) |
-| **📥 Exportar** | Download direto de Excel + geração de gráfico PNG |
-
-Todos os gráficos são **interativos** (Plotly): passe o mouse para ver valores.
-
----
-
-## 🎨 Mudar as cores
-
-Edite `.streamlit/config.toml` (cores do app) ou as constantes `COLOR_*` no topo de
-`app/interfaces/streamlit_app.py` (cores dos gráficos). Salve e recarregue.
-
----
-
-## 🗄️ Acessar o banco de dados
-
-O banco fica em `data/database.db` (SQLite). Três formas de acessar:
+### CLI
 
 ```bash
-# 1. Via terminal SQLite
+python -m app.main
+
+# Menu:
+# 1 - Adicionar transação
+# 2 - Gerar relatório
+# 3 - Listar transações
+# 4 - Exportar Excel
+# ... etc
+```
+
+### Streamlit Web
+
+```bash
+streamlit run run_streamlit.py
+```
+
+Páginas:
+- **Dashboard** — KPIs, saldos, comparativo receitas vs despesas
+- **Adicionar** — Formulário com sugestão de IA
+- **Transações** — Lista com filtros (mês, tipo, categoria, conta)
+- **Relatórios** — Evolução e breakdown por categoria
+- **Cartões** — Status de faturas e limites
+- **Metas** — Progresso de objetivos
+- **Alertas** — Avisos e recomendações
+- **Exportar** — Download Excel, gráficos PNG
+
+### API REST (FastAPI)
+
+```bash
+python run_api.py
+```
+
+Endpoints principais:
+
+```
+GET  /transactions              # Listar
+POST /transactions              # Criar
+GET  /transactions/{id}         # Detalhe
+PUT  /transactions/{id}         # Atualizar
+DELETE /transactions/{id}       # Deletar
+
+GET  /accounts                  # Listar contas
+POST /accounts                  # Criar conta
+
+GET  /cards                      # Listar cartões
+POST /cards                      # Criar cartão
+
+GET  /goals                      # Listar metas
+POST /goals                      # Criar meta
+
+GET  /alerts                     # Alertas agregados
+
+GET  /reports/summary            # Resumo financeiro
+GET  /reports/by-category        # Despesas por categoria
+
+POST /ai/suggest-category        # Sugerir categoria
+GET  /advice                     # Análise financeira
+```
+
+Documentação interativa: http://127.0.0.1:8000/docs
+
+### Frontend Web
+
+```bash
+cd frontend
+python -m http.server 8080
+# Abra http://localhost:8080
+```
+
+Interface moderna com:
+- Tema claro/escuro
+- Gráficos interativos
+- Responsive (mobile-friendly)
+- Consumo direto da API
+
+---
+
+## Configuração Avançada
+
+### Banco de Dados
+
+O SQLite fica em `data/database.db`. Para inspecionar:
+
+```bash
+# 1. Terminal SQLite
 sqlite3 data/database.db
 sqlite> SELECT * FROM transactions;
-sqlite> .quit
 
-# 2. Visual: baixe o "DB Browser for SQLite" (gratuito) em sqlitebrowser.org
+# 2. GUI: DB Browser for SQLite (sqlitebrowser.org)
 
-# 3. Pela própria CLI: python -m app.main → opção 3 (Listar)
+# 3. Via CLI do app: python -m app.main → opção 3
 ```
+
+### Temas e Cores
+
+Streamlit: edite `.streamlit/config.toml`
+
+Frontend: modifique `frontend/css/light-theme.css`
+
+### Logging
+
+Logs em `logs/app.log`. Nível configurável em `app/utils/logger.py`.
 
 ---
 
-## ❗ Erros comuns
+## Troubleshooting
 
-| Erro | Solução |
+| Problema | Solução |
 |---|---|
 | `ModuleNotFoundError: No module named 'app'` | Use `python -m app.main`, não `python app/main.py` |
-| `ModuleNotFoundError: No module named 'plotly'` | `pip install -r requirements.txt` |
-| `Port 8501 is already in use` | `streamlit run run_streamlit.py --server.port 8502` |
-| Página em branco | Ctrl+Shift+R para recarregar |
+| Importação falha | Ative `.venv` e rode `pip install -r requirements.txt` |
+| `Port 8501 already in use` | `streamlit run run_streamlit.py --server.port 8502` |
+| `Port 8000 already in use` | `python run_api.py --port 8001` |
+| Caracteres estranhos (Windows) | `set PYTHONIOENCODING=utf-8` |
+| API retorna 422 | Verifique schema Pydantic em `app/api/schemas.py` |
 
 ---
 
-## 🏛️ Princípio arquitetural
+## Roadmap
 
-```
-CLI ──┐
-      ├─→ Services ──→ Repositories ──→ SQLite
-Web ──┘     ↑
-         IA Service
-```
-
-**Nenhum service, repository ou model muda** ao adicionar uma interface nova.
-A interface só MOSTRA dados e CHAMA services. Por isso o projeto está pronto
-para a Fase 3 (FastAPI + frontend HTML/CSS/React).
+- Fase 1: CLI + SQLite + Relatórios (COMPLETO)
+- Fase 2: Streamlit com gráficos Plotly (COMPLETO)
+- Fase 2.5: IA de categorização + Consultor (COMPLETO)
+- Fase 3: API FastAPI + Frontend web (COMPLETO)
+- Fase 4: Multi-contas, cartões, metas, alertas (COMPLETO)
+- Fase 5: Importação CSV/OFX, automação, gestão de casal
 
 ---
 
-## 📈 Fases do projeto
+## Desenvolvimento
 
-- ✅ **Fase 1** — CLI + SQLite + relatórios + Excel + gráficos
-- ✅ **Fase 2** — Streamlit (dashboard, filtros, exportação)
-- ✅ **Fase 2.5** — Visual com Plotly + IA de categorização ← *você está aqui*
-- 🔜 **Fase 3** — API REST (FastAPI) + frontend web
-- 🔜 **Fase 4** — Importação CSV/OFX, Open Finance, mais IA
+### Padrões
+
+- **Interfaces** são agnósticas — chamam apenas `services`
+- **Services** contêm toda lógica de negócio
+- **Repositories** são o único lugar com SQL
+- **Models** definem entidades
+- **Constants** centralizam categorias, tipos, padrões
+
+### Testes
+
+Sem suite de testes automatizados ainda. Verificação manual via TestClient ou uvicorn.
+
+### Contribuições
+
+Para adicionar uma feature:
+
+1. Implemente o serviço (`app/services/`)
+2. Exponha em todas as interfaces desejadas (CLI, Streamlit, API)
+3. Teste em cada interface
+4. Atualize este README
+
+---
+
+## Licença
+
+Projeto pessoal de aprendizado e gestão financeira.
