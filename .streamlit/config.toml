@@ -1,0 +1,27 @@
+# Tema visual do Finance App.
+# O Streamlit lê este arquivo automaticamente ao iniciar.
+# Documentação: https://docs.streamlit.io/library/advanced-features/theming
+#
+# COMO ESTUDAR: mude qualquer cor abaixo (formato hexadecimal #RRGGBB),
+# salve, e recarregue o app no navegador para ver o efeito.
+
+[theme]
+# Cor principal: usada em botões, links e destaques.
+# Verde financeiro (transmite "dinheiro", "positivo").
+primaryColor = "#10B981"
+
+# Fundo principal da página.
+backgroundColor = "#0F172A"
+
+# Fundo de componentes secundários (sidebar, cards).
+secondaryBackgroundColor = "#1E293B"
+
+# Cor do texto.
+textColor = "#F1F5F9"
+
+# Fonte. Opções: "sans serif", "serif", "monospace".
+font = "sans serif"
+
+[server]
+# Não tenta abrir estatísticas de uso.
+gatherUsageStats = false

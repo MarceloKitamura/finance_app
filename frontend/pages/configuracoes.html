@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚙️ Configurações — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="configuracoes">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <!-- GERENCIADOR DE CONTAS / SALDOS -->
+      <section class="card">
+        <div class="card-head"><h2>👛 Contas / saldos</h2></div>
+        <p class="muted" style="margin-bottom:14px">
+          Crie e edite suas contas (Dinheiro, Nubank, Vale Refeição…). O saldo
+          atual é calculado automaticamente a partir das transações.
+        </p>
+
+        <form id="acc-form" class="form">
+          <input type="hidden" id="acc-id" />
+          <div class="row">
+            <label class="field">Nome
+              <input type="text" id="acc-name" placeholder="Ex: Nubank" required />
+            </label>
+            <label class="field">Tipo
+              <select id="acc-kind">
+                <option value="dinheiro">Dinheiro</option>
+                <option value="banco">Banco</option>
+                <option value="beneficio">Benefício (VR/VA)</option>
+                <option value="investimento">Investimento</option>
+                <option value="outro" selected>Outro</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">Saldo inicial (R$)
+              <input type="number" id="acc-initial" step="0.01" value="0" />
+            </label>
+            <label class="field">Ícone (emoji)
+              <input type="text" id="acc-icon" maxlength="4" placeholder="💳" />
+            </label>
+          </div>
+          <label class="field">Cor de destaque
+            <input type="color" id="acc-color" value="#3B82F6" />
+          </label>
+          <div class="flex gap">
+            <button type="submit" id="acc-save" class="btn btn-primary">💾 Adicionar conta</button>
+            <button type="button" id="acc-cancel" class="btn btn-ghost" hidden>Cancelar</button>
+          </div>
+          <p id="acc-msg" class="form-msg"></p>
+        </form>
+
+        <div class="account-manage-list" id="acc-list" style="margin-top:16px"></div>
+      </section>
+
+      <section class="card">
+        <h2>⚙️ Listas do sistema</h2>
+        <p class="muted">
+          Estas listas vêm da API (<code>/meta</code>) e são a fonte única da verdade
+          usada nos formulários. Por enquanto são apenas para visualização —
+          a edição será adicionada quando o backend expor endpoints de gerenciamento.
+        </p>
+      </section>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>💰 Categorias de receita</h2>
+          <div class="chip-list" id="cfg-income"></div>
+        </section>
+        <section class="card">
+          <h2>💸 Categorias de despesa</h2>
+          <div class="chip-list" id="cfg-expense"></div>
+        </section>
+      </div>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>💳 Formas de pagamento</h2>
+          <div class="chip-list" id="cfg-payment"></div>
+        </section>
+        <section class="card">
+          <h2>👥 Pessoas (quem gastou)</h2>
+          <div class="chip-list" id="cfg-people"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

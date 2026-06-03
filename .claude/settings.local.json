@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(.venv/Scripts/python.exe -c \"import pandas, openpyxl, matplotlib, streamlit, plotly; print\\('Todas as dependencias principais OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from app.interfaces.streamlit_app import main; import app.main; print\\('Imports OK - app carrega sem erros'\\)\")",
+      "Bash(.venv/Scripts/streamlit.exe run *)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(\".venv/Scripts/python.exe\" -c \"import importlib; [importlib.import_module\\(m\\) for m in ['app.interfaces.cli','app.interfaces.streamlit_app','app.api.main','app.services.transaction_service','app.services.report_service']]; print\\('Imports OK: CLI, Streamlit, API e services carregam sem erro'\\)\")",
+      "Bash(curl -s -m 3 http://127.0.0.1:8000/meta -o /dev/null -w \"API status: %{http_code}\\\\n\")",
+      "Bash(node --check theme.js)",
+      "Bash(node --check ui.js)",
+      "Bash(py -0p)",
+      "Bash(./.venv/Scripts/python.exe -c \"import fastapi, uvicorn; print\\('fastapi', fastapi.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8011 --log-level warning)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -c ' *)",
+      "Bash(node --check app.js)",
+      "Bash(node --check api.js)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8012 --log-level warning)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8013 --log-level warning)",
+      "Bash(cd \"C:\\\\Users\\\\marcelo.kitamura\\\\.claude\\\\projects\\\\C--Users-marcelo-kitamura-Desktop-finance-app\\\\memory\")",
+      "Bash(cat MEMORY.md)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8014 --log-level warning)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8015 --log-level warning)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8016 --log-level warning)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m uvicorn app.api.main:app --port 8017 --log-level warning)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

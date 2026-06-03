@@ -1,0 +1,58 @@
+/* =========================================================
+   Finance App — RESPONSIVIDADE (responsive.css)
+   ---------------------------------------------------------
+   Estratégia "desktop-first": o layout completo está nos outros
+   arquivos; aqui adaptamos para telas menores.
+
+   Breakpoints:
+   - <= 1024px (tablet): grids de 2 colunas viram 1; KPIs em 2 colunas.
+   - <=  720px (celular): sidebar vira menu deslizante (hamburguer),
+     KPIs em 1 coluna, linhas de formulário empilhadas.
+   IMPORTANTE: este arquivo deve ser o ÚLTIMO <link> no HTML para
+   que suas regras vençam as anteriores.
+   ========================================================= */
+
+/* ---------- TABLET ---------- */
+@media (max-width: 1024px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+  .kpis   { grid-template-columns: repeat(2, 1fr); }
+  .compare-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- CELULAR ---------- */
+@media (max-width: 720px) {
+  :root { --sidebar-w: 0px; }
+
+  /* Sidebar deslizante: fica fora da tela e entra quando .open */
+  .sidebar {
+    width: 250px;
+    transform: translateX(-100%);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main-area { margin-left: 0; }
+  .hamburger { display: inline-flex; }
+
+  /* Backdrop visível quando o menu abre */
+  .backdrop.show { display: block; }
+
+  .kpis { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
+  .row { grid-template-columns: 1fr; }
+
+  .container { padding: 16px; }
+  .topbar { padding: 0 16px; }
+
+  .filters { flex-direction: column; align-items: stretch; }
+  .filters input, .filters select { min-width: 0; width: 100%; }
+
+  .chart-box { height: 240px; }
+  .kpi-value { font-size: 1.35rem; }
+}
+
+/* Telas bem pequenas: esconde colunas menos essenciais da tabela.
+   (As células marcadas com .col-optional somem para caber tudo.) */
+@media (max-width: 540px) {
+  .col-optional { display: none; }
+}

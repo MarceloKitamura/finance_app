@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🤖 Conselhos IA — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="conselhos">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <section class="card">
+        <div class="card-head">
+          <h2>🤖 Conselhos financeiros</h2>
+          <button id="btn-gerar" class="btn btn-primary">✨ Gerar conselho</button>
+        </div>
+        <p class="muted">
+          Escolha o período na barra superior e gere uma análise. Se a IA (Groq)
+          estiver disponível no backend, o conselho vem dela; caso contrário, o app
+          gera dicas com base em regras a partir do resumo do mês.
+        </p>
+      </section>
+
+      <!-- Saída dos conselhos (preenchida pelo app.js) -->
+      <div id="advice-output"></div>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

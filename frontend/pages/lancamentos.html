@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💸 Lançamentos — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="lancamentos">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <!-- FORMULÁRIO (criar / editar) -->
+      <section class="card">
+        <div class="card-head">
+          <h2 id="form-title">➕ Nova transação</h2>
+          <button id="btn-cancel-edit" class="btn btn-ghost btn-sm" hidden>Cancelar edição</button>
+        </div>
+
+        <form id="form" class="form">
+          <div class="field">
+            <span class="label">Tipo</span>
+            <div class="radios">
+              <label><input type="radio" name="type" value="despesa" checked /> 💸 Despesa</label>
+              <label><input type="radio" name="type" value="receita" /> 💰 Receita</label>
+            </div>
+          </div>
+
+          <label class="field">Descrição
+            <input type="text" id="description" placeholder="Ex: Mercado, Uber, Salário" required />
+          </label>
+
+          <div class="row">
+            <label class="field">Valor (R$)
+              <input type="number" id="amount" min="0.01" step="0.01" placeholder="0,00" required />
+            </label>
+            <label class="field">Data
+              <input type="date" id="date" required />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Categoria
+              <span class="cat-label-row">
+                <select id="category"></select>
+                <span id="cat-ai-badge" class="badge badge-llm" hidden title="Categoria sugerida pela IA — você pode trocar">🤖 IA</span>
+              </span>
+            </label>
+            <label class="field" id="custom-category-wrap" hidden>Categoria personalizada
+              <input type="text" id="custom-category" placeholder="Digite a categoria" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Forma de pagamento
+              <select id="payment_method"></select>
+            </label>
+            <label class="field">Quem gastou?
+              <select id="spent_by"></select>
+            </label>
+          </div>
+
+          <label class="field" id="custom-person-wrap" hidden>Nome de quem gastou
+            <input type="text" id="custom-person" placeholder="Digite o nome" />
+          </label>
+
+          <div class="row">
+            <label class="field">Conta / saldo
+              <select id="account"></select>
+            </label>
+            <label class="field">Cartão de crédito (opcional)
+              <select id="card"><option value="">— Nenhum —</option></select>
+            </label>
+          </div>
+
+          <div class="flex gap">
+            <button type="submit" id="btn-save" class="btn btn-primary">💾 Salvar</button>
+          </div>
+          <p id="form-msg" class="form-msg"></p>
+        </form>
+      </section>
+
+      <!-- LISTAGEM + FILTROS -->
+      <section class="card">
+        <h2>📋 Transações</h2>
+
+        <div class="filters">
+          <label class="grow">Buscar descrição
+            <input type="text" id="f-search" placeholder="🔍 Digite para filtrar…" />
+          </label>
+          <label>Tipo
+            <select id="f-type">
+              <option value="">Todos</option>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </label>
+          <label>Categoria
+            <select id="f-category"><option value="">Todas</option></select>
+          </label>
+          <label>Pagamento
+            <select id="f-payment"><option value="">Todos</option></select>
+          </label>
+          <label>Quem gastou
+            <select id="f-person"><option value="">Todos</option></select>
+          </label>
+          <label>Conta
+            <select id="f-account"><option value="">Todas</option></select>
+          </label>
+          <button id="f-clear" class="btn btn-ghost">Limpar</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="date">Data</th>
+                <th class="sortable" data-sort="type">Tipo</th>
+                <th class="sortable" data-sort="category">Categoria</th>
+                <th class="col-optional sortable" data-sort="spent_by">Quem</th>
+                <th class="col-optional sortable" data-sort="payment_method">Pagamento</th>
+                <th class="col-optional sortable" data-sort="account">Conta</th>
+                <th class="num sortable" data-sort="amount">Valor</th>
+                <th class="col-optional sortable" data-sort="description">Descrição</th>
+                <th class="num">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <p id="empty" class="empty" hidden>Nenhuma transação encontrada.</p>
+        </div>
+
+        <div class="pagination">
+          <button id="prev-page" class="btn btn-ghost btn-sm">← Anterior</button>
+          <span id="page-info" class="page-info">—</span>
+          <button id="next-page" class="btn btn-ghost btn-sm">Próxima →</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

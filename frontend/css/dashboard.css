@@ -1,0 +1,70 @@
+/* =========================================================
+   Finance App — DASHBOARD & RELATÓRIOS (dashboard.css)
+   ---------------------------------------------------------
+   Grids de duas colunas, áreas de gráfico (Chart.js desenha
+   dentro de um <canvas> com altura fixa) e a caixa de conselho.
+   ========================================================= */
+
+/* Grid de duas colunas (form + gráficos, ou gráfico + tabela) */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* Área onde o Chart.js desenha. Altura fixa evita que o canvas
+   "cresça infinito" (comportamento padrão sem responsive container). */
+.chart-box {
+  position: relative;
+  height: 280px;
+}
+.chart-box.tall { height: 340px; }
+.chart-box canvas { max-height: 100%; }
+
+/* Quando não há dados, mostramos um aviso no lugar do gráfico */
+.chart-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+/* Barra de ações rápidas no topo do dashboard */
+.quick-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Comparação mês a mês (relatórios) */
+.compare-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.compare-item { text-align: center; padding: 14px; background: var(--bg); border-radius: var(--radius-sm); }
+.compare-item .label { font-size: .78rem; color: var(--muted); text-transform: uppercase; }
+.compare-item .value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.delta { font-size: .82rem; font-weight: 600; }
+.delta.up   { color: var(--danger); }   /* gastou mais = ruim  */
+.delta.down { color: var(--primary); }   /* gastou menos = bom  */
+
+/* Paginação da tabela de lançamentos */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 8px; }
+.pagination .page-info { color: var(--muted); font-size: .85rem; }
+
+/* Barra de filtros */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+.filters label { font-size: .78rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.filters input, .filters select { min-width: 150px; }
+.filters .grow { flex: 1; min-width: 200px; }
+
+/* Select pequeno inline no cabeçalho de um card (ex: período do comparativo) */
+.inline-select { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); }
+.inline-select select { width: auto; padding: 6px 8px; }

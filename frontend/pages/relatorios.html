@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📈 Relatórios — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="relatorios">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <!-- Resumo do período -->
+      <section class="card">
+        <h2>🧮 Resumo do mês</h2>
+        <div class="compare-grid">
+          <div class="compare-item">
+            <div class="label">Receitas</div>
+            <div class="value" id="sum-incomes" style="color:var(--primary)">R$ 0,00</div>
+          </div>
+          <div class="compare-item">
+            <div class="label">Despesas</div>
+            <div class="value" id="sum-expenses" style="color:var(--danger)">R$ 0,00</div>
+          </div>
+          <div class="compare-item">
+            <div class="label">Saldo</div>
+            <div class="value" id="sum-balance">R$ 0,00</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Comparação com o mês anterior -->
+      <section class="card">
+        <div class="card-head">
+          <h2 id="compare-title">📅 Comparação com o mês anterior</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th class="num" id="compare-th-prev">Mês anterior</th>
+                <th class="num" id="compare-th-curr">Mês atual</th>
+                <th class="num">Variação</th>
+              </tr>
+            </thead>
+            <tbody id="compare-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Evolução mensal -->
+      <section class="card">
+        <div class="card-head">
+          <h2>📈 Evolução</h2>
+          <label class="inline-select">Período
+            <select id="compare-months">
+              <option value="2">2 meses</option>
+              <option value="3">3 meses</option>
+              <option value="6" selected>6 meses</option>
+            </select>
+          </label>
+        </div>
+        <div class="chart-box tall"><canvas id="rep-evolution"></canvas></div>
+      </section>
+
+      <!-- Comparação por categoria (lado a lado) -->
+      <section class="card">
+        <h2>🆚 Categorias: mês atual vs anterior</h2>
+        <div class="chart-box tall"><canvas id="rep-cat-compare"></canvas></div>
+      </section>
+
+      <!-- Gráficos de distribuição -->
+      <div class="grid-2">
+        <section class="card">
+          <h2>🍩 Despesas por categoria</h2>
+          <div class="chart-box"><canvas id="rep-category"></canvas></div>
+        </section>
+        <section class="card">
+          <h2>💳 Despesas por forma de pagamento</h2>
+          <div class="chart-box"><canvas id="rep-payment"></canvas></div>
+        </section>
+      </div>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>👥 Despesas por pessoa</h2>
+          <div class="chart-box"><canvas id="rep-person"></canvas></div>
+        </section>
+
+        <!-- Tabela por categoria -->
+        <section class="card">
+          <h2>📑 Detalhe por categoria</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Categoria</th><th class="num">Total</th><th class="num">% do total</th></tr>
+              </thead>
+              <tbody id="cat-tbody"></tbody>
+            </table>
+            <p id="cat-empty" class="empty" hidden>Sem despesas neste mês.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

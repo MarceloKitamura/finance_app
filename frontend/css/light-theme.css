@@ -1,0 +1,60 @@
+/* =========================================================
+   Finance App — TEMA CLARO (light-theme.css)
+   ---------------------------------------------------------
+   Só ENTRA em ação quando o <html> tem data-theme="light".
+   Reaproveitamos exatamente as mesmas variáveis do style.css
+   (--bg, --card, --text, ...): mudando os valores aqui, todos
+   os componentes acompanham automaticamente, sem tocar em
+   nenhuma regra de layout.
+
+   IMPORTANTE: carregue este arquivo DEPOIS do style.css. O seletor
+   html[data-theme="light"] tem especificidade maior que :root, então
+   vence os valores escuros padrão.
+
+   As cores de marca (--primary verde, --danger vermelho, --info azul,
+   --warning âmbar) continuam iguais nos dois temas — muda só a
+   "base" (fundos, textos, bordas, sombras).
+   ========================================================= */
+
+html[data-theme="light"] {
+  --bg:     #F1F5F9; /* fundo da página (cinza-azulado bem claro) */
+  --card:   #FFFFFF; /* cards brancos                             */
+  --card-2: #EEF2F7; /* card levemente destacado                  */
+  --border: #DDE3EC; /* bordas suaves                             */
+  --text:   #0F172A; /* texto principal (quase preto)             */
+  --muted:  #64748B; /* texto secundário                          */
+
+  /* Sombras mais leves no claro (no escuro elas eram bem marcadas). */
+  --shadow:    0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+/* No tema claro, o texto do botão verde primário fica melhor escuro
+   (já estava), mas ajustamos pequenos contrastes pontuais. */
+html[data-theme="light"] .btn-primary { color: #053a2c; }
+
+/* A topbar usa color-mix do --card; no claro isso já resolve bem,
+   mas reforçamos a borda inferior para não "sumir". */
+html[data-theme="light"] .topbar { border-bottom-color: var(--border); }
+
+/* =========================================================
+   BOTÃO DE ALTERNÂNCIA DE TEMA (sol/lua)
+   Vale para os dois temas — fica aqui por ser do mesmo assunto.
+   ========================================================= */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s ease, transform .08s ease, border-color .15s ease;
+}
+.theme-toggle:hover { background: var(--card-2); }
+.theme-toggle:active { transform: translateY(1px); }
