@@ -1,0 +1,250 @@
+/* =========================================================
+   Finance App — CARDS (cards.css)
+   ---------------------------------------------------------
+   Card genérico + cards de KPI (Receitas, Despesas, Saldo...).
+   Destaque: o card de Saldo tem uma FAIXA LATERAL cuja cor muda
+   conforme o saldo (azul positivo / vermelho negativo / cinza zero).
+   A cor é aplicada via classe (.is-pos / .is-neg / .is-zero) que o
+   JS define com base no valor — ver utils.corSaldo().
+   ========================================================= */
+
+/* ---- Card genérico ---- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.card > h2 { margin-bottom: 14px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.card-head h2 { margin: 0; }
+
+/* ---- Grade de KPIs ---- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpi {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+}
+.kpi .kpi-top { display: flex; align-items: center; justify-content: space-between; }
+.kpi-label { color: var(--muted); font-size: .82rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+/* Ícone do KPI em "chip" arredondado com leve tinta da cor do indicador. */
+.kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--muted);
+}
+.kpi-icon .ic-svg { width: 18px; height: 18px; }
+.kpi-icon.income  { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); }
+.kpi-icon.expense { background: color-mix(in srgb, var(--danger) 16%, transparent);  color: var(--danger); }
+.kpi-icon.accent  { background: color-mix(in srgb, var(--accent) 16%, transparent);  color: var(--accent); }
+.kpi-value { font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kpi-value.income  { color: var(--primary); }
+.kpi-value.expense { color: var(--danger); }
+.kpi-sub { font-size: .75rem; color: var(--muted); }
+
+/* ---- FAIXA LATERAL (card de saldo) ----
+   A faixa é um ::before colado na esquerda do card.
+   A cor sai de uma variável que o JS ajusta por classe. */
+.kpi-stripe::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  background: var(--stripe, var(--muted));
+}
+.kpi-stripe.is-pos  { --stripe: var(--accent); }   /* saldo positivo: índigo  */
+.kpi-stripe.is-neg  { --stripe: var(--danger); }   /* saldo negativo: vermelho */
+.kpi-stripe.is-zero { --stripe: var(--muted); }    /* saldo zero: cinza        */
+
+.kpi-stripe.is-pos  .kpi-value { color: var(--accent); }
+.kpi-stripe.is-neg  .kpi-value { color: var(--danger); }
+
+/* ---- Card de conselho rápido (dashboard) ---- */
+.advice-card { border-left: 4px solid var(--warning); }
+.advice-card p { color: var(--text); font-size: .95rem; }
+
+/* ---- Cards de insight (página Conselhos IA) ---- */
+.insight-card { display: flex; flex-direction: column; gap: 6px; }
+.insight-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.insight-head h3 { margin: 0; color: var(--text); font-size: 1rem; display: flex; align-items: center; gap: 7px; }
+.insight-head h3 .ic-svg { width: 17px; height: 17px; flex-shrink: 0; }
+.insight-card p { color: var(--text); font-size: .92rem; }
+.badge {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Selo da IA com destaque (gradiente sutil na cor de marca). */
+.badge-llm {
+  background: color-mix(in srgb, var(--info) 18%, transparent);
+  border-color: var(--info);
+  color: var(--info);
+}
+
+/* Linha "select de categoria + selo da IA" no formulário de lançamentos. */
+.cat-label-row { display: flex; align-items: center; gap: 8px; }
+.cat-label-row select { flex: 1; }
+
+/* ---- Cards de saldos/contas (dashboard) ---- */
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.account-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+}
+/* Faixa superior colorida com a cor da conta (--acc-color via JS). */
+.account-card::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 4px;
+  background: var(--acc-color, var(--info));
+}
+.account-top { display: flex; align-items: center; gap: 8px; }
+.account-icon { display: inline-flex; align-items: center; color: var(--muted); }
+.account-icon .ic-svg { width: 18px; height: 18px; }
+.account-name { font-weight: 700; font-size: .95rem; }
+.account-balance { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.account-balance.neg { color: var(--danger); }
+.account-flow { display: flex; gap: 12px; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.account-flow .up, .account-flow .down { display: inline-flex; align-items: center; gap: 3px; }
+.account-flow .up { color: var(--primary); }
+.account-flow .down { color: var(--danger); }
+.account-flow .ic-svg { width: 13px; height: 13px; }
+/* Ícones inline nos títulos de cards (cartão/meta) e linhas de gerenciador. */
+.cc-name .ic-svg,
+.c-name .ic-svg,
+.g-name .ic-svg { width: 16px; height: 16px; vertical-align: -2px; margin-right: 5px; color: var(--muted); }
+.badge .ic-svg { width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; }
+
+/* ---- Cards de cartões de crédito ---- */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.credit-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+}
+.credit-card::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 4px;
+  background: var(--acc-color, #8B5CF6);
+}
+.cc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cc-name { font-weight: 700; font-size: .98rem; }
+.cc-invoice { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cc-label { color: var(--muted); font-size: .78rem; }
+.cc-value { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Barra de uso do limite */
+.cc-bar { height: 8px; background: var(--bg); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+.cc-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
+.cc-bar-fill.ok { background: var(--primary); }
+.cc-bar-fill.warning { background: var(--warning); }
+.cc-bar-fill.danger { background: var(--danger); }
+.cc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .78rem; }
+.cc-due-soon { color: var(--warning); font-weight: 700; }
+.badge-danger { background: color-mix(in srgb, var(--danger) 18%, transparent); border-color: var(--danger); color: var(--danger); }
+.badge-ok { background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: var(--primary); color: var(--primary); }
+
+/* ---- Cards de metas (barra de progresso) ---- */
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.goal-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; }
+.goal-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--acc-color, var(--primary)); }
+.goal-sub { font-size: .78rem; }
+.cc-bar-fill.info { background: var(--info); }
+
+/* ---- Gerenciador de metas (página Metas) ---- */
+.goal-manage-list { display: flex; flex-direction: column; gap: 8px; }
+.goal-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--acc-color, var(--primary));
+  border-radius: var(--radius-sm);
+}
+.goal-row .g-name { font-weight: 600; }
+.goal-row .g-meta { color: var(--muted); font-size: .78rem; }
+.goal-row .g-actions { margin-left: auto; display: flex; gap: 4px; }
+
+/* ---- Gerenciador de cartões (página Cartões) ---- */
+.card-manage-list { display: flex; flex-direction: column; gap: 8px; }
+.card-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--acc-color, #8B5CF6);
+  border-radius: var(--radius-sm);
+}
+.card-row .c-name { font-weight: 600; }
+.card-row .c-meta { color: var(--muted); font-size: .78rem; }
+.card-row .c-actions { margin-left: auto; display: flex; gap: 4px; }
+
+/* ---- Gerenciador de contas (configurações) ---- */
+.account-manage-list { display: flex; flex-direction: column; gap: 8px; }
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--acc-color, var(--info));
+  border-radius: var(--radius-sm);
+}
+.account-row .a-icon { display: inline-flex; align-items: center; color: var(--muted); }
+.account-row .a-icon .ic-svg { width: 18px; height: 18px; }
+.account-row .a-name { font-weight: 600; }
+.account-row .a-kind { color: var(--muted); font-size: .78rem; }
+.account-row .a-balance { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+.account-row .a-balance.neg { color: var(--danger); }
+.account-row .a-actions { display: flex; gap: 4px; }
+
+/* ---- Listas simples (configurações) ---- */
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: .85rem;
+}

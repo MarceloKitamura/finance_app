@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lançamentos — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="lancamentos">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <!-- Abas: Lançar manualmente | Importar extrato -->
+      <div class="tabs" id="lanc-tabs">
+        <button class="tab-btn active" data-tab="lancar"><i data-icon="edit" data-size="16"></i> Lançar</button>
+        <button class="tab-btn" data-tab="importar"><i data-icon="download" data-size="16"></i> Importar extrato</button>
+      </div>
+
+      <!-- ============ PAINEL: LANÇAR ============ -->
+      <div class="tab-panel active" data-panel="lancar">
+      <!-- FORMULÁRIO (criar / editar) -->
+      <section class="card">
+        <div class="card-head">
+          <h2 id="form-title">Nova transação</h2>
+          <button id="btn-cancel-edit" class="btn btn-ghost btn-sm" hidden>Cancelar edição</button>
+        </div>
+
+        <form id="form" class="form">
+          <div class="field">
+            <span class="label">Tipo</span>
+            <div class="radios">
+              <label><input type="radio" name="type" value="despesa" checked /> Despesa</label>
+              <label><input type="radio" name="type" value="receita" /> Receita</label>
+            </div>
+          </div>
+
+          <label class="field rec-suggest-field">Descrição
+            <input type="text" id="description" placeholder="Ex: Mercado, Uber, Salário"
+                   autocomplete="off" required />
+            <!-- Dropdown de autopreenchimento (gastos recorrentes / histórico) -->
+            <div id="rec-suggestions" class="rec-suggest" hidden></div>
+          </label>
+
+          <div class="row">
+            <label class="field">Valor (R$)
+              <input type="number" id="amount" min="0.01" step="0.01" placeholder="0,00" required />
+            </label>
+            <label class="field">Data
+              <input type="date" id="date" required />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Categoria
+              <span class="cat-label-row">
+                <select id="category"></select>
+                <span id="cat-ai-badge" class="badge badge-llm" hidden title="Categoria sugerida pela IA — você pode trocar"><i data-icon="ai" data-size="12"></i> IA</span>
+              </span>
+            </label>
+            <label class="field" id="custom-category-wrap" hidden>Categoria personalizada
+              <input type="text" id="custom-category" placeholder="Digite a categoria" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Forma de pagamento
+              <select id="payment_method"></select>
+            </label>
+            <label class="field">Quem gastou?
+              <select id="spent_by"></select>
+            </label>
+          </div>
+
+          <label class="field" id="custom-person-wrap" hidden>Nome de quem gastou
+            <input type="text" id="custom-person" placeholder="Digite o nome" />
+          </label>
+
+          <div class="row">
+            <label class="field">Conta / saldo
+              <select id="account"></select>
+            </label>
+            <label class="field">Cartão de crédito (opcional)
+              <select id="card"><option value="">— Nenhum —</option></select>
+            </label>
+          </div>
+
+          <div class="flex gap">
+            <button type="submit" id="btn-save" class="btn btn-primary"><i data-icon="save"></i> Salvar</button>
+          </div>
+          <p id="form-msg" class="form-msg"></p>
+        </form>
+      </section>
+
+      <!-- LISTAGEM + FILTROS -->
+      <section class="card">
+        <h2>Transações</h2>
+
+        <div class="filters">
+          <label class="grow">Buscar descrição
+            <input type="text" id="f-search" placeholder="Digite para filtrar…" />
+          </label>
+          <label>Tipo
+            <select id="f-type">
+              <option value="">Todos</option>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </label>
+          <label>Categoria
+            <select id="f-category"><option value="">Todas</option></select>
+          </label>
+          <label>Pagamento
+            <select id="f-payment"><option value="">Todos</option></select>
+          </label>
+          <label>Quem gastou
+            <select id="f-person"><option value="">Todos</option></select>
+          </label>
+          <label>Conta
+            <select id="f-account"><option value="">Todas</option></select>
+          </label>
+          <button id="f-clear" class="btn btn-ghost">Limpar</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="date">Data</th>
+                <th class="sortable" data-sort="type">Tipo</th>
+                <th class="sortable" data-sort="category">Categoria</th>
+                <th class="col-optional sortable" data-sort="spent_by">Quem</th>
+                <th class="col-optional sortable" data-sort="payment_method">Pagamento</th>
+                <th class="col-optional sortable" data-sort="account">Conta</th>
+                <th class="num sortable" data-sort="amount">Valor</th>
+                <th class="col-optional sortable" data-sort="description">Descrição</th>
+                <th class="num">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <p id="empty" class="empty" hidden>Nenhuma transação encontrada.</p>
+        </div>
+
+        <div class="pagination">
+          <button id="prev-page" class="btn btn-ghost btn-sm"><i data-icon="arrow-left" data-size="15"></i> Anterior</button>
+          <span id="page-info" class="page-info">—</span>
+          <button id="next-page" class="btn btn-ghost btn-sm">Próxima <i data-icon="arrow-right" data-size="15"></i></button>
+        </div>
+      </section>
+      </div><!-- /painel lancar -->
+
+      <!-- ============ PAINEL: IMPORTAR EXTRATO ============ -->
+      <div class="tab-panel" data-panel="importar">
+        <section class="card">
+          <div class="card-head"><h2>Importar extrato (CSV ou OFX)</h2></div>
+          <p class="muted" style="margin:0 0 12px">
+            Arraste o arquivo do seu banco ou clique para selecionar. CSV e OFX são suportados.
+          </p>
+          <div id="dropzone" class="dropzone">
+            <span class="dz-icon" data-icon="file"></span>
+            <p><strong>Arraste o arquivo aqui</strong> ou clique para escolher</p>
+            <p class="muted" id="dz-file">Nenhum arquivo selecionado</p>
+            <input type="file" id="file-input" accept=".csv,.ofx,.txt,.qfx" hidden />
+          </div>
+        </section>
+
+        <!-- Mapeamento de colunas (só CSV) -->
+        <section class="card" id="map-section" hidden>
+          <div class="card-head"><h2>Mapear colunas (CSV)</h2></div>
+          <p class="muted" style="margin:0 0 12px">Diga qual coluna do arquivo é cada campo.</p>
+          <div class="row">
+            <label class="field">Coluna da Data
+              <select id="map-date"></select>
+            </label>
+            <label class="field">Coluna do Valor
+              <select id="map-amount"></select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">Coluna da Descrição
+              <select id="map-description"></select>
+            </label>
+            <label class="field">Tipo
+              <select id="map-type">
+                <option value="auto" selected>Automático (pelo sinal do valor)</option>
+                <option value="despesa">Tudo despesa</option>
+                <option value="receita">Tudo receita</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">Conta padrão
+              <select id="map-account"></select>
+            </label>
+            <label class="field">Pagamento padrão
+              <select id="map-payment"></select>
+            </label>
+          </div>
+          <button id="map-apply" class="btn btn-primary"><i data-icon="search"></i> Pré-visualizar</button>
+        </section>
+
+        <!-- Preview -->
+        <section class="card" id="preview-section" hidden>
+          <div class="card-head">
+            <h2>Pré-visualização</h2>
+            <span class="muted" id="preview-count"></span>
+          </div>
+          <p class="muted" style="margin:0 0 10px">
+            Desmarque o que não quer importar. Linhas em vermelho são possíveis duplicatas (já desmarcadas).
+          </p>
+          <div class="flex gap" style="margin-bottom:10px">
+            <button id="sel-all" class="btn btn-ghost btn-sm">Marcar todas</button>
+            <button id="sel-none" class="btn btn-ghost btn-sm">Desmarcar todas</button>
+            <button id="sel-nondup" class="btn btn-ghost btn-sm">Só não-duplicatas</button>
+          </div>
+          <div class="table-wrap">
+            <table id="prev-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="check-all" /></th>
+                  <th>Data</th><th>Tipo</th>
+                  <th class="num">Valor</th>
+                  <th>Descrição</th>
+                  <th>Categoria</th>
+                  <th>Dup?</th>
+                </tr>
+              </thead>
+              <tbody id="prev-tbody"></tbody>
+            </table>
+            <p id="prev-empty" class="empty" hidden>Nenhuma transação reconhecida no arquivo.</p>
+          </div>
+          <div class="flex gap" style="margin-top:14px">
+            <button id="btn-import" class="btn btn-primary"><i data-icon="download"></i> Importar selecionadas</button>
+            <span id="import-msg" class="form-msg"></span>
+          </div>
+        </section>
+      </div><!-- /painel importar -->
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/icons.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

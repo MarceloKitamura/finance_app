@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planejamento — Finance App</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/light-theme.css" />
+  <link rel="stylesheet" href="../css/cards.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <link rel="stylesheet" href="../css/responsive.css" />
+  <script src="../js/theme.js"></script>
+</head>
+<body data-page="planejamento">
+  <aside id="sidebar"></aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-area">
+    <header id="topbar"></header>
+    <div id="status" class="status" hidden></div>
+
+    <main class="container">
+      <!-- Abas: Recorrentes | Agenda & Fluxo -->
+      <div class="tabs" id="plan-tabs">
+        <button class="tab-btn active" data-tab="recorrentes"><i data-icon="recurring" data-size="16"></i> Recorrentes</button>
+        <button class="tab-btn" data-tab="agenda"><i data-icon="calendar" data-size="16"></i> Agenda & Fluxo de caixa</button>
+      </div>
+
+      <!-- ============ PAINEL: RECORRENTES ============ -->
+      <div class="tab-panel active" data-panel="recorrentes">
+        <section class="card">
+          <div class="card-head"><h2>Próximas cobranças</h2></div>
+          <div class="cards-grid" id="rec-next"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Detectados no histórico</h2>
+            <label class="muted" style="font-size:.9em">
+              Janela
+              <select id="rec-window">
+                <option value="3">3 meses</option>
+                <option value="6" selected>6 meses</option>
+                <option value="12">12 meses</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted" style="margin:0 0 10px">
+            Gastos que se repetem mês a mês. Clique em <strong>Salvar</strong> para virar um template.
+          </p>
+          <div id="rec-detected"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2 id="rec-form-title">Novo gasto recorrente</h2></div>
+          <form id="rec-form" class="form">
+            <input type="hidden" id="r-id" />
+            <div class="row">
+              <label class="field">Descrição
+                <input type="text" id="r-description" placeholder="Ex: Netflix" required />
+              </label>
+              <label class="field">Valor (R$)
+                <input type="number" id="r-amount" step="0.01" min="0.01" placeholder="39,90" required />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Tipo
+                <select id="r-type">
+                  <option value="despesa" selected>Despesa</option>
+                  <option value="receita">Receita</option>
+                </select>
+              </label>
+              <label class="field">Categoria
+                <select id="r-category"></select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Forma de pagamento
+                <select id="r-payment"></select>
+              </label>
+              <label class="field">Quem
+                <select id="r-spent-by"></select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Conta
+                <select id="r-account"></select>
+              </label>
+              <label class="field">Cartão
+                <select id="r-card"><option value="">— Nenhum —</option></select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Dia da cobrança
+                <input type="number" id="r-day" min="0" max="31" value="0" />
+                <small class="muted">0 = não sei</small>
+              </label>
+              <label class="field">Status
+                <select id="r-active">
+                  <option value="1" selected>Ativo</option>
+                  <option value="0">Pausado</option>
+                </select>
+              </label>
+            </div>
+            <div class="flex gap">
+              <button type="submit" id="r-save" class="btn btn-primary"><i data-icon="save"></i> Adicionar</button>
+              <button type="button" id="r-cancel" class="btn btn-ghost" hidden>Cancelar</button>
+            </div>
+            <p id="r-msg" class="form-msg"></p>
+          </form>
+          <div class="card-manage-list" id="rec-list" style="margin-top:16px"></div>
+        </section>
+      </div>
+
+      <!-- ============ PAINEL: AGENDA & FLUXO ============ -->
+      <div class="tab-panel" data-panel="agenda">
+        <section class="card">
+          <div class="card-head">
+            <h2>Próximos vencimentos</h2>
+            <label class="muted" style="font-size:.9em">
+              Janela
+              <select id="venc-window">
+                <option value="15">15 dias</option>
+                <option value="30" selected>30 dias</option>
+                <option value="60">60 dias</option>
+              </select>
+            </label>
+          </div>
+          <div class="cards-grid" id="venc-next"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Fluxo de caixa do mês</h2>
+            <div class="period">
+              <label>Ano <input type="number" id="cf-year" min="2000" max="2100" /></label>
+              <label>Mês <select id="cf-month"></select></label>
+            </div>
+          </div>
+          <div id="cf-summary" class="kpis" style="margin-bottom:14px"></div>
+          <div class="chart-box"><canvas id="cf-chart"></canvas></div>
+          <div class="table-wrap" style="margin-top:14px">
+            <table id="cf-table">
+              <thead>
+                <tr><th>Data</th><th>Vencimentos</th><th class="num">Saída</th><th class="num">Saldo projetado</th></tr>
+              </thead>
+              <tbody id="cf-tbody"></tbody>
+            </table>
+            <p id="cf-empty" class="empty" hidden>Nenhum vencimento neste mês.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2 id="venc-form-title">Novo vencimento</h2></div>
+          <form id="venc-form" class="form">
+            <input type="hidden" id="v-id" />
+            <div class="row">
+              <label class="field">Nome
+                <input type="text" id="v-name" placeholder="Ex: Aluguel" required />
+              </label>
+              <label class="field">Valor (R$)
+                <input type="number" id="v-amount" step="0.01" min="0" value="0" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Vencimento
+                <input type="date" id="v-due" required />
+              </label>
+              <label class="field">Tipo
+                <select id="v-kind">
+                  <option value="conta" selected>Conta</option>
+                  <option value="cartao">Cartão</option>
+                  <option value="meta">Meta</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Recorrência
+                <select id="v-recurrence">
+                  <option value="unica" selected>Única</option>
+                  <option value="mensal">Mensal</option>
+                </select>
+              </label>
+              <label class="field">Avisar (dias antes)
+                <input type="number" id="v-notify" min="0" max="60" value="3" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">Categoria (opcional)
+                <input type="text" id="v-category" placeholder="Ex: Moradia" />
+              </label>
+              <label class="field">Status
+                <select id="v-status">
+                  <option value="pendente" selected>Pendente</option>
+                  <option value="pago">Pago</option>
+                </select>
+              </label>
+            </div>
+            <label class="field">Observação
+              <input type="text" id="v-notes" placeholder="Opcional" />
+            </label>
+            <div class="flex gap">
+              <button type="submit" id="v-save" class="btn btn-primary"><i data-icon="save"></i> Adicionar</button>
+              <button type="button" id="v-cancel" class="btn btn-ghost" hidden>Cancelar</button>
+            </div>
+            <p id="v-msg" class="form-msg"></p>
+          </form>
+          <div class="card-manage-list" id="venc-list" style="margin-top:16px"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="../js/icons.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>

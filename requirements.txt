@@ -1,0 +1,20 @@
+pandas>=2.0
+openpyxl>=3.1
+matplotlib>=3.7
+streamlit>=1.30
+plotly>=5.18
+
+# API REST (Fase 3) — FastAPI + servidor Uvicorn.
+fastapi>=0.110
+uvicorn>=0.27
+
+# OPCIONAL: descomente a linha abaixo se quiser usar IA via ChatGPT.
+# Sem ela, a IA funciona offline usando palavras-chave.
+# openai>=1.0
+
+# OPCIONAL: conselho financeiro personalizado via Groq (https://groq.com).
+# Não precisa de pacote pip — usamos só a biblioteca padrão (urllib).
+# Para ativar, defina no arquivo .env:
+#   GROQ_API_KEY=gsk_...                  (sua chave em console.groq.com)
+#   GROQ_MODEL=llama-3.3-70b-versatile    (modelo; veja console.groq.com/docs/models)
+# Depois crie o FinancialAdvisorService com use_llm=True.

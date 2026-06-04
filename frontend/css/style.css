@@ -1,0 +1,523 @@
+/* =========================================================
+   Finance App — ESTILOS GLOBAIS (style.css)
+   ---------------------------------------------------------
+   Aqui ficam: variáveis de cor (design tokens), reset básico,
+   tipografia, layout-shell (sidebar + área principal), barra
+   superior, botões, formulários, tabelas e o "toast" de avisos.
+
+   Componentes mais específicos moram em outros arquivos:
+   - cards.css      -> cards de KPI e card de saldo com faixa lateral
+   - dashboard.css  -> grids e gráficos do dashboard/relatórios
+   - responsive.css -> ajustes para tablet e celular
+   ========================================================= */
+
+/* Fonte da interface: Inter (Google Fonts). Um único ponto de carga vale
+   para todas as páginas. Se não houver internet, cai no fallback de sistema
+   definido em --font, sem quebrar o layout. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+/* ---------- Design tokens (variáveis CSS) ----------
+   Centralizar cores aqui deixa o tema fácil de ajustar:
+   muda em um lugar só e o app inteiro acompanha. */
+:root {
+  /* Cor de destaque (marca + ações principais) — índigo/violeta. */
+  --accent:        #6366F1; /* índigo — marca, botão principal, foco */
+  --accent-strong: #4F46E5; /* hover do índigo                       */
+  --on-accent:     #FFFFFF; /* texto sobre o índigo                  */
+
+  /* Cores semânticas (dinheiro): verde = receita, vermelho = despesa. */
+  --primary: #10B981;   /* verde  — receitas / positivo  */
+  --danger:  #EF4444;   /* vermelho — despesas / alerta  */
+  --info:    #3B82F6;   /* azul   — neutro / gráficos    */
+  --warning: #F59E0B;   /* âmbar  — avisos                */
+
+  --bg:        #0B1220; /* fundo da página (navy profundo) */
+  --card:      #151E30; /* fundo dos cards                 */
+  --card-2:    #1E293B; /* card levemente destacado        */
+  --border:    #283449; /* bordas sutis                    */
+  --text:      #F1F5F9; /* texto principal                 */
+  --muted:     #93A1B5; /* texto secundário                */
+
+  --radius: 16px;
+  --radius-sm: 11px;
+  --shadow: 0 12px 32px rgba(2, 6, 23, 0.45);
+  --shadow-sm: 0 1px 3px rgba(2, 6, 23, 0.35);
+
+  --sidebar-w: 240px;
+  --topbar-h: 64px;
+
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+/* ---------- Reset básico ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; }
+h1, h2, h3 { line-height: 1.25; letter-spacing: -0.02em; }
+h2 { font-size: 1.15rem; margin-bottom: .25rem; font-weight: 700; }
+h3 { font-size: .95rem; color: var(--muted); font-weight: 600; }
+
+/* =========================================================
+   ÍCONES (SVG) — base de alinhamento e tamanho
+   Os ícones herdam a cor do contexto (stroke=currentColor).
+   ========================================================= */
+.ic { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex-shrink: 0; }
+.ic-svg { display: block; }
+/* Botões e links alinham texto + ícone na mesma linha de base óptica. */
+.btn .ic-svg, .btn .ic { vertical-align: middle; }
+
+/* =========================================================
+   LAYOUT SHELL — sidebar fixa + área principal
+   ========================================================= */
+.app-shell { min-height: 100%; }
+
+/* ---- Sidebar (navegação) ---- */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-w);
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  z-index: 30;
+  transition: transform .25s ease;
+}
+
+.sidebar .brand {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  padding: 6px 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;   /* a marca nunca encolhe */
+}
+/* Logomark da marca: quadrado arredondado índigo com o ícone branco. */
+.sidebar .brand .brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: var(--on-accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.sidebar .brand .brand-logo .ic-svg { width: 20px; height: 20px; }
+
+/* A navegação rola sozinha quando há muitos itens (a marca e o rodapé
+   ficam fixos). min-height:0 é o que permite o overflow funcionar dentro
+   de um flex container. */
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -6px;     /* aproveita a largura para a barra de rolagem */
+  padding: 2px 6px;
+}
+/* Barra de rolagem fina e discreta (Firefox + WebKit). */
+.sidebar nav { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.sidebar nav::-webkit-scrollbar { width: 6px; }
+.sidebar nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.sidebar nav::-webkit-scrollbar-track { background: transparent; }
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-weight: 500;
+  transition: background .15s ease, color .15s ease;
+}
+.nav-link:hover { background: var(--card-2); color: var(--text); }
+.nav-link.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  /* Barrinha índigo no item ativo (inset: nunca transborda a nav rolável). */
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.nav-link .ico { display: inline-flex; align-items: center; justify-content: center; width: 22px; color: var(--muted); }
+.nav-link.active .ico { color: var(--accent); }
+.nav-link:hover .ico { color: var(--text); }
+.nav-link .ico .ic-svg { width: 19px; height: 19px; }
+
+/* Contador de alertas não lidos na sidebar */
+.nav-badge {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Item de alerta (lista) */
+.alert-item { display: flex; align-items: center; gap: 12px; }
+.alert-item .alert-ico { display: inline-flex; align-items: center; flex-shrink: 0; }
+.alert-item .alert-ico .ic-svg { width: 20px; height: 20px; }
+.alert-item .alert-body { flex: 1; }
+.alert-item h3 { color: var(--text); font-size: .98rem; margin-bottom: 2px; }
+.alert-item p { font-size: .88rem; color: var(--muted); }
+
+.sidebar .foot {
+  margin-top: auto;
+  font-size: .75rem;
+  color: var(--muted);
+  padding: 10px;
+  flex-shrink: 0;   /* o rodapé fica fixo embaixo */
+}
+
+/* ---- Área principal ---- */
+.main-area {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Barra superior ---- */
+.topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.topbar .page-title { font-size: 1.15rem; font-weight: 700; }
+.topbar .spacer { flex: 1; }
+
+/* Botão hamburguer (só aparece no mobile via responsive.css) */
+.hamburger {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 7px 9px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+.hamburger .ic-svg { width: 20px; height: 20px; }
+
+/* Backdrop escuro quando a sidebar abre no mobile */
+.backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+  z-index: 25;
+}
+
+/* ---- Conteúdo ---- */
+.container {
+  padding: 28px 24px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+/* Respiro consistente entre grades irmãs (cards/kpis) e a seção seguinte. */
+.container > .grid-2,
+.container > .kpis,
+.container > .quick-actions { margin: 0; }
+
+/* Período (ano/mês) que aparece na topbar de algumas páginas */
+.period { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.period label { font-size: .8rem; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.period input, .period select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: .9rem;
+}
+.period input[type="number"] { width: 84px; }
+
+/* =========================================================
+   BOTÕES
+   ========================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .08s ease, filter .15s ease, background .15s ease;
+  white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn .ic-svg { width: 17px; height: 17px; }
+.btn-sm .ic-svg { width: 15px; height: 15px; }
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.btn-primary:hover { background: var(--accent-strong); filter: none; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { filter: brightness(1.08); }
+.btn-info { background: var(--info); color: #fff; }
+.btn-info:hover { filter: brightness(1.08); }
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn-ghost:hover { background: var(--card-2); }
+.btn-sm { padding: 6px 10px; font-size: .8rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Botão-ícone (excluir/editar nas tabelas) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background .15s, color .15s;
+}
+.icon-btn .ic-svg { width: 17px; height: 17px; }
+.icon-btn:hover { background: var(--card-2); color: var(--text); }
+.icon-btn.danger:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* =========================================================
+   FORMULÁRIOS
+   ========================================================= */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+.field .label { font-size: .85rem; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: .95rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  width: 100%;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+input::placeholder { color: var(--muted); }
+
+/* Radios (tipo: despesa/receita) */
+.radios { display: flex; gap: 10px; }
+.radios label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: .9rem;
+}
+.radios input { width: auto; }
+.radios label:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Mensagem inline do formulário */
+.form-msg { font-size: .85rem; min-height: 1.2em; }
+.form-msg .ic-svg { vertical-align: -2px; }
+.form-msg.ok  { color: var(--primary); }
+.form-msg.err { color: var(--danger); }
+
+/* =========================================================
+   TABELAS
+   ========================================================= */
+.table-wrap { width: 100%; overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+thead th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+thead th.sortable { cursor: pointer; user-select: none; }
+thead th.sortable:hover { color: var(--text); }
+thead th .ic-svg { vertical-align: -2px; color: var(--accent); }
+tbody td { padding: 11px 12px; border-bottom: 1px solid var(--border); }
+tbody tr:hover { background: var(--card-2); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* "Pílulas" de tipo (receita/despesa) */
+.tag {
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+.tag.receita { background: color-mix(in srgb, var(--primary) 22%, transparent); color: var(--primary); }
+.tag.despesa { background: color-mix(in srgb, var(--danger) 22%, transparent);  color: var(--danger); }
+
+.amount.receita { color: var(--primary); font-weight: 600; }
+.amount.despesa { color: var(--danger); font-weight: 600; }
+
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.muted { color: var(--muted); }
+
+/* =========================================================
+   FAIXA DE STATUS + TOAST
+   ========================================================= */
+.status {
+  margin: 12px 24px 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: .9rem;
+}
+.status.err  { background: color-mix(in srgb, var(--danger) 18%, transparent);  border: 1px solid var(--danger); }
+.status.ok   { background: color-mix(in srgb, var(--primary) 18%, transparent); border: 1px solid var(--primary); }
+.status.info { background: color-mix(in srgb, var(--info) 18%, transparent);    border: 1px solid var(--info); }
+
+/* Toast: avisos flutuantes no canto inferior direito */
+#toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 50;
+}
+.toast {
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: .9rem;
+  animation: toast-in .2s ease;
+}
+.toast.ok   { border-left: 4px solid var(--primary); }
+.toast.err  { border-left: 4px solid var(--danger); }
+.toast.info { border-left: 4px solid var(--info); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+/* =========================================================
+   SPINNER (estado de carregamento)
+   ========================================================= */
+.spinner {
+  width: 22px; height: 22px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  display: inline-block;
+}
+.loading-box { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 30px; color: var(--muted); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* =========================================================
+   ABAS (tabs) — para páginas que agrupam vários assuntos
+   ========================================================= */
+.tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .95rem;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); background: var(--card-2); }
+.tab-btn .ic-svg { width: 16px; height: 16px; vertical-align: middle; margin-right: 2px; }
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tab-btn.active .ic-svg { color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: tab-fade .25s ease; }
+@keyframes tab-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* Cada painel mantém o mesmo respiro entre cards do .container. */
+.tab-panel.active { display: flex; flex-direction: column; gap: 24px; }
+
+/* Utilitário */
+[hidden] { display: none !important; }
+.flex { display: flex; }
+.gap { gap: 12px; }
+.between { justify-content: space-between; align-items: center; }
+.wrap { flex-wrap: wrap; }
