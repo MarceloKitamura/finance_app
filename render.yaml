@@ -1,0 +1,33 @@
+# ───────────────────────────────────────────────────────────
+# Configuração de deploy da API (backend) no Render.
+# Com este arquivo no repositório, o Render cria o serviço quase
+# sozinho (Blueprint) — você só preenche a GROQ_API_KEY no painel.
+# Docs: https://render.com/docs/blueprint-spec
+# ───────────────────────────────────────────────────────────
+services:
+  - type: web
+    name: finance-app-api
+    runtime: python
+    # 'starter' (~US$7/mês) permite DISCO PERSISTENTE — o banco SQLite
+    # sobrevive a reinícios/deploys. Se preferir testar de graça, troque
+    # para 'free' E remova o bloco "disk" abaixo (atenção: no plano free
+    # os dados são apagados a cada deploy/restart).
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_api.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0          # aceitar conexões externas (obrigatório no Render)
+      - key: RELOAD
+        value: "false"          # sem auto-reload em produção
+      - key: DATA_DIR
+        value: /var/data        # banco no disco persistente (montado abaixo)
+      - key: CORS_ORIGINS
+        value: "*"              # depois troque pela URL do seu frontend Vercel
+      - key: GROQ_API_KEY
+        sync: false             # você cola o valor no painel; NÃO fica no repo
+    # Disco persistente onde mora o data/database.db (via DATA_DIR acima).
+    disk:
+      name: finance-data
+      mountPath: /var/data
+      sizeGB: 1

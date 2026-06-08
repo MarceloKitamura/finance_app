@@ -25,8 +25,17 @@
    ========================================================= */
 
 const Api = (() => {
-  // Onde a API REST está rodando. Trocou a porta? Mude aqui.
-  const BASE = "http://127.0.0.1:8000";
+  // URL pública da SUA API no Render. Depois de criar o serviço lá, troque
+  // o valor abaixo pela URL que o Render te der (algo como
+  // "https://finance-app-api.onrender.com"). Sem barra "/" no final.
+  const PROD_API = "https://COLOQUE-SUA-API-AQUI.onrender.com";
+
+  // Decide automaticamente qual API usar:
+  // - rodando local (localhost / 127.0.0.1 / arquivo aberto direto) -> API local
+  // - publicado (Vercel) -> usa a PROD_API acima
+  // Assim o mesmo código funciona nos dois lugares sem você editar toda hora.
+  const _isLocal = ["localhost", "127.0.0.1", ""].includes(location.hostname);
+  const BASE = _isLocal ? "http://127.0.0.1:8000" : PROD_API;
 
   /**
    * Núcleo das requisições. Faz o fetch, trata erros HTTP e

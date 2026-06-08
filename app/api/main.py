@@ -68,14 +68,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: permite que um frontend rodando em outra origem (ex:
-# http://localhost:5173 do Vite) chame esta API pelo navegador.
-# allow_origins=["*"] é cômodo em desenvolvimento; em produção,
-# troque pela URL real do frontend.
+# CORS: permite que o frontend (em outra origem/domínio) chame esta API pelo
+# navegador. A lista de origens permitidas vem da variável de ambiente
+# CORS_ORIGINS (separada por vírgula). Em desenvolvimento o padrão "*" libera
+# tudo; em produção, defina CORS_ORIGINS com a URL do seu frontend Vercel, ex:
+#   CORS_ORIGINS=https://meu-finance.vercel.app
+import os
+
+_cors_env = os.getenv("CORS_ORIGINS", "*").strip()
+_allow_origins = (
+    ["*"] if _cors_env == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allow_origins,
+    # Não usamos cookies/sessão (a API é sem login); manter False permite usar
+    # "*" com segurança e evita o conflito credentials+wildcard do navegador.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

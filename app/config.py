@@ -5,6 +5,7 @@ Aqui definimos caminhos de pastas e arquivos, e garantimos
 que as pastas necessárias existam antes do programa rodar.
 """
 
+import os
 from pathlib import Path
 
 # BASE_DIR aponta para a raiz do projeto (a pasta finance_app/).
@@ -13,8 +14,12 @@ from pathlib import Path
 # .parent sobe um nível na árvore de pastas.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Pastas principais
-DATA_DIR = BASE_DIR / "data"
+# Pastas principais.
+# DATA_DIR pode ser sobrescrita pela variável de ambiente DATA_DIR. Em produção
+# (Render), apontamos para um DISCO PERSISTENTE (ex.: /var/data) para que o
+# banco SQLite sobreviva a reinícios/deploys. Em local, fica em ./data.
+_data_dir_env = os.getenv("DATA_DIR")
+DATA_DIR = Path(_data_dir_env) if _data_dir_env else (BASE_DIR / "data")
 EXPORTS_DIR = DATA_DIR / "exports"
 CHARTS_DIR = DATA_DIR / "charts"
 LOGS_DIR = BASE_DIR / "logs"
