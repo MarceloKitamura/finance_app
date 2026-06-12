@@ -6,8 +6,10 @@ __pycache__/
 venv/
 .env
 
-# Dados gerados em runtime
+# Dados gerados em runtime (contêm dados pessoais — nunca versionar)
 data/database.db
+data/*.db
+*.db
 data/exports/
 data/charts/
 logs/

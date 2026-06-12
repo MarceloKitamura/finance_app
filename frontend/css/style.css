@@ -336,6 +336,20 @@ h3 { font-size: .95rem; color: var(--muted); font-weight: 600; }
 .field .label { font-size: .85rem; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
+/* Caixa compacta do "aplicar a todas as parcelas" (edição de parcela).
+   Puxa para perto do botão Salvar (margin-top negativo cancela parte do gap
+   do .form) e usa um leve destaque para não parecer um item solto. */
+.apply-group-box {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: -6px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-radius: 8px;
+  font-size: .88rem; color: var(--text); cursor: pointer;
+}
+.apply-group-box input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+
 input, select, textarea {
   font-family: inherit;
   font-size: .95rem;
@@ -521,3 +535,27 @@ tbody tr:hover { background: var(--card-2); }
 .gap { gap: 12px; }
 .between { justify-content: space-between; align-items: center; }
 .wrap { flex-wrap: wrap; }
+
+/* ---- Prévia de parcelas (formulário de gasto no cartão) ---- */
+.installment-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.installment-preview .installment-head {
+  font-size: .78rem;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 4px;
+}
+.installment-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 0;
+  font-size: .9rem;
+}
+.installment-row .num { font-variant-numeric: tabular-nums; font-weight: 600; }

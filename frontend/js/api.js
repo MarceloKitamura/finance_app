@@ -13,10 +13,9 @@
      DELETE /transactions/{id}          -> remove
      GET    /reports/monthly?year=&month= -> resumo do mês
 
-   OBS 1: a API NÃO tem endpoint de UPDATE (PUT). Por isso
-   `updateTransaction` é implementado como "criar nova + apagar a
-   antiga" (ver função abaixo). Quando o backend ganhar um PUT,
-   basta trocar a implementação aqui — as páginas não mudam.
+   OBS 1: a API tem PUT /transactions/{id} (update no lugar). Por isso
+   `updateTransaction` edita mantendo o mesmo id e a metadata de parcela
+   (ideal para ajustar os centavos da última parcela).
 
    OBS 2: a API ainda NÃO expõe os conselhos da IA (Groq). A função
    `generateConselho` tenta um endpoint opcional e, se não existir,
@@ -110,23 +109,19 @@ const Api = (() => {
   }
 
   /**
-   * "Atualiza" uma transação. Como a API não tem PUT, fazemos:
-   * 1) cria a nova versão; 2) se deu certo, apaga a antiga.
-   * O id muda (é uma nova linha) — comportamento aceitável até o
-   * backend ganhar um endpoint de update real.
+   * Atualiza uma transação no lugar (PUT /transactions/{id}). Mantém o MESMO
+   * id e a metadata de parcela — por isso dá para ajustar só o valor de uma
+   * parcela (ex.: os centavos da última) sem desfazer a compra parcelada.
+   * `data` pode trazer só os campos a mudar; o backend preserva o resto.
    */
-  async function updateTransaction(id, data) {
-    const criada = await createTransaction(data);
-    try {
-      await deleteTransaction(id);
-    } catch (e) {
-      // Criou a nova mas não apagou a antiga: avisa para não duplicar.
-      throw new Error(
-        "Nova versão criada, mas não consegui remover a antiga " +
-        `(id ${id}). Apague-a manualmente. Detalhe: ${e.message}`
-      );
-    }
-    return criada;
+  function updateTransaction(id, data, applyToGroup = false) {
+    // applyToGroup: propaga campos compartilhados (quem gastou, categoria,
+    // pagamento, conta, cartão) para todas as parcelas da mesma compra.
+    const qs = applyToGroup ? "?apply_to_group=true" : "";
+    return request(`/transactions/${id}${qs}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   }
 
   // ---------- IA de categorização ----------
@@ -191,6 +186,17 @@ const Api = (() => {
   /** Remove um cartão pelo id. */
   function deleteCard(id) {
     return request(`/cards/${id}`, { method: "DELETE" });
+  }
+
+  /**
+   * Fatura detalhada do mês + as próximas faturas (com parcelas futuras).
+   * Retorna { card_id, card_name, limit_total, statements: [...] }.
+   */
+  function getCardStatements(id, year, month, monthsAhead = 6) {
+    const now = new Date();
+    const y = year || now.getFullYear();
+    const m = month || now.getMonth() + 1;
+    return request(`/cards/${id}/statements?year=${y}&month=${m}&months_ahead=${monthsAhead}`);
   }
 
   // ---------- Metas financeiras ----------
@@ -346,6 +352,38 @@ const Api = (() => {
     return Promise.all(pedidos);
   }
 
+  // ---------- Salário (bruto / líquido / divisão) ----------
+
+  /** Lê a configuração de salário + líquido estimado + divisão 15/30. */
+  function getSalary() {
+    return request("/salary");
+  }
+
+  /** Salva a configuração de salário. `data` segue SalaryConfigIn. */
+  function saveSalary(data) {
+    return request("/salary", { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  // ---------- Previsão financeira do mês ----------
+
+  /**
+   * Previsão determinística do saldo de fim de mês (salário + recorrentes +
+   * contas + saldo atual). Em erro devolve null para o dashboard tratar.
+   */
+  async function getForecast(year, month, includeSalary = true) {
+    const now = new Date();
+    const y = year || now.getFullYear();
+    const m = month || now.getMonth() + 1;
+    // include_salary=false = "modo sem salário": projeta o saldo sem contar com
+    // o pagamento ainda não recebido.
+    const salarioParam = includeSalary ? "" : "&include_salary=false";
+    try {
+      return await request(`/forecast?year=${y}&month=${m}${salarioParam}`);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------- Conselhos (IA gestora / fallback) ----------
 
   /**
@@ -364,12 +402,25 @@ const Api = (() => {
     }
   }
 
+  /**
+   * Estado das integrações de IA (GET /ai/status): se Groq/OpenAI têm chave.
+   * Usado para mostrar um aviso de "configure sua chave" quando a IA roda só
+   * com as regras offline. Em erro devolve null (a página simplesmente omite).
+   */
+  async function getAIStatus() {
+    try {
+      return await request("/ai/status");
+    } catch (_) {
+      return null;
+    }
+  }
+
   return {
     BASE, request, getMeta,
     fetchTransactions, getTransaction, createTransaction,
     deleteTransaction, updateTransaction,
     getAccounts, createAccount, updateAccount, deleteAccount,
-    getCards, createCard, updateCard, deleteCard,
+    getCards, createCard, updateCard, deleteCard, getCardStatements,
     getGoals, createGoal, updateGoal, deleteGoal,
     getAlerts,
     suggestCategory,
@@ -379,6 +430,7 @@ const Api = (() => {
     payVencimento, getCashFlow,
     previewImport, confirmImport,
     getHealthScore,
-    getMonthlyReport, getMonthlyRange, getAdvice,
+    getSalary, saveSalary, getForecast,
+    getMonthlyReport, getMonthlyRange, getAdvice, getAIStatus,
   };
 })();

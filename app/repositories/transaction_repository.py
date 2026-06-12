@@ -28,8 +28,9 @@ class TransactionRepository:
         sql = """
         INSERT INTO transactions
             (date, description, amount, type, category, payment_method,
-             spent_by, account, card, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             spent_by, account, card, payment_origin, installment_no,
+             installments_total, purchase_group, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             transaction.date,
@@ -41,12 +42,52 @@ class TransactionRepository:
             transaction.spent_by,
             transaction.account,
             transaction.card,
+            transaction.payment_origin,
+            transaction.installment_no,
+            transaction.installments_total,
+            transaction.purchase_group,
             transaction.created_at,
         )
 
         with get_connection() as conn:
             cursor = conn.execute(sql, params)
             transaction.id = cursor.lastrowid
+        return transaction
+
+    def update(self, transaction: Transaction) -> Transaction:
+        """Atualiza uma transação existente (pelo id) preservando o registro.
+
+        Diferente de "apagar + recriar", isto mantém o MESMO id e a metadata de
+        parcelamento (installment_no/installments_total/purchase_group), o que é
+        essencial para editar só o valor de uma parcela (ex.: centavos da última)
+        sem desfazer o vínculo da compra parcelada.
+        """
+        sql = """
+        UPDATE transactions SET
+            date = ?, description = ?, amount = ?, type = ?, category = ?,
+            payment_method = ?, spent_by = ?, account = ?, card = ?,
+            payment_origin = ?, installment_no = ?, installments_total = ?,
+            purchase_group = ?
+        WHERE id = ?
+        """
+        params = (
+            transaction.date,
+            transaction.description,
+            transaction.amount,
+            transaction.type,
+            transaction.category,
+            transaction.payment_method,
+            transaction.spent_by,
+            transaction.account,
+            transaction.card,
+            transaction.payment_origin,
+            transaction.installment_no,
+            transaction.installments_total,
+            transaction.purchase_group,
+            transaction.id,
+        )
+        with get_connection() as conn:
+            conn.execute(sql, params)
         return transaction
 
     def list_all(self) -> List[Transaction]:
@@ -97,6 +138,23 @@ class TransactionRepository:
             rows = conn.execute(sql, (spent_by,)).fetchall()
         return [self._row_to_transaction(row) for row in rows]
 
+    def find_by_purchase_group(self, purchase_group: str) -> List[Transaction]:
+        """Retorna as parcelas de uma mesma compra (mesmo purchase_group).
+
+        Usado pelo TransactionService para deduplicar parcelas na importação:
+        se a parcela já existe no grupo, não recria. Grupo vazio = nada.
+        """
+        if not purchase_group:
+            return []
+        sql = """
+        SELECT * FROM transactions
+        WHERE purchase_group = ?
+        ORDER BY installment_no
+        """
+        with get_connection() as conn:
+            rows = conn.execute(sql, (purchase_group,)).fetchall()
+        return [self._row_to_transaction(row) for row in rows]
+
     def get_by_id(self, transaction_id: int) -> Optional[Transaction]:
         """Busca uma transação pelo id. Retorna None se não existir."""
         sql = "SELECT * FROM transactions WHERE id = ?"
@@ -145,11 +203,18 @@ class TransactionRepository:
         Retorna {nome_conta: {"income": x, "expense": y}}. O AccountService
         usa isso para calcular o saldo atual de cada conta:
             saldo_atual = saldo_inicial + income - expense
+
+        IMPORTANTE: gastos no CARTÃO (payment_origin = 'card') NÃO entram
+        como despesa da conta — eles vão para a fatura do cartão e só
+        afetam o saldo quando a fatura é paga. Por isso a despesa só soma
+        transações com origem 'account'.
         """
         sql = """
         SELECT account,
                COALESCE(SUM(CASE WHEN type = 'receita' THEN amount END), 0) AS income,
-               COALESCE(SUM(CASE WHEN type = 'despesa' THEN amount END), 0) AS expense
+               COALESCE(SUM(CASE WHEN type = 'despesa'
+                                  AND payment_origin = 'account'
+                            THEN amount END), 0) AS expense
         FROM transactions
         GROUP BY account
         """
@@ -178,6 +243,24 @@ class TransactionRepository:
             rows = conn.execute(sql, (first_day, last_day)).fetchall()
         return {row["card"]: row["total"] for row in rows}
 
+    def find_by_card_in_month(self, card: str, year: int, month: int) -> List[Transaction]:
+        """Lançamentos (despesas) de um cartão num mês — itens da fatura.
+
+        Usado para detalhar a fatura e projetar as próximas (as parcelas
+        futuras já estão gravadas com a data do mês da respectiva fatura).
+        """
+        if not card:
+            return []
+        first_day, last_day = month_range(year, month)
+        sql = """
+        SELECT * FROM transactions
+        WHERE card = ? AND type = 'despesa' AND date BETWEEN ? AND ?
+        ORDER BY date, id
+        """
+        with get_connection() as conn:
+            rows = conn.execute(sql, (card, first_day, last_day)).fetchall()
+        return [self._row_to_transaction(row) for row in rows]
+
     @staticmethod
     def _row_to_transaction(row) -> Transaction:
         """
@@ -191,6 +274,17 @@ class TransactionRepository:
         spent_by = row["spent_by"] if "spent_by" in keys else "Eu"
         account = row["account"] if "account" in keys else "Carteira"
         card = row["card"] if "card" in keys else ""
+        # Bancos antigos podem não ter as colunas de origem/parcelamento.
+        # Fallback: deriva a origem a partir do cartão (card preenchido = cartão).
+        if "payment_origin" in keys:
+            payment_origin = row["payment_origin"]
+        else:
+            payment_origin = "card" if card else "account"
+        installment_no = row["installment_no"] if "installment_no" in keys else 1
+        installments_total = (
+            row["installments_total"] if "installments_total" in keys else 1
+        )
+        purchase_group = row["purchase_group"] if "purchase_group" in keys else ""
         return Transaction(
             id=row["id"],
             date=row["date"],
@@ -202,5 +296,9 @@ class TransactionRepository:
             spent_by=spent_by,
             account=account,
             card=card,
+            payment_origin=payment_origin,
+            installment_no=installment_no,
+            installments_total=installments_total,
+            purchase_group=purchase_group,
             created_at=row["created_at"],
         )

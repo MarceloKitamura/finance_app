@@ -34,9 +34,14 @@ from typing import Optional
 
 from app.constants.category_patterns import EXPENSE_PATTERNS, INCOME_PATTERNS
 from app.constants.transaction_types import TYPE_EXPENSE, TYPE_INCOME
+from app.utils.env import load_env_file
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Garante que o .env (com OPENAI_API_KEY) seja lido mesmo quando este service é
+# usado sozinho (CLI/testes), sem depender de outro módulo ter carregado antes.
+load_env_file()
 
 
 # Resultado de uma sugestão: (categoria_ou_None, confianca_de_0_a_1).

@@ -68,6 +68,21 @@ const Utils = (() => {
     if (data.type !== "receita" && data.type !== "despesa") erros.push("Tipo inválido.");
     if (!data.category || !data.category.trim()) erros.push("Escolha uma categoria.");
     if (!data.payment_method) erros.push("Escolha a forma de pagamento.");
+
+    // Origem do pagamento: obrigatória e exclusiva (conta OU cartão).
+    if (data.payment_origin && !["account", "card"].includes(data.payment_origin)) {
+      erros.push("Escolha se o gasto foi feito na conta ou no cartão.");
+    }
+    if (data.payment_origin === "card") {
+      if (data.type === "receita") erros.push("Receita não pode ser no cartão de crédito.");
+      if (!data.card) erros.push("Escolha qual cartão de crédito foi usado.");
+      if (data.installments != null && Number(data.installments) < 1) {
+        erros.push("A quantidade de parcelas deve ser pelo menos 1.");
+      }
+    } else {
+      // Origem conta não pode ter cartão amarrado.
+      if (data.card) erros.push("Gasto na conta não pode ter cartão. Escolha só uma origem.");
+    }
     return { ok: erros.length === 0, erros };
   }
 

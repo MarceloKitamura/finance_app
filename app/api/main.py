@@ -29,11 +29,13 @@ from app.api.routers import (
     ai,
     alerts,
     cards,
+    forecast,
     goals,
     imports,
     meta,
     recurring,
     reports,
+    salary,
     transactions,
     vencimentos,
 )
@@ -111,6 +113,8 @@ app.include_router(goals.router, prefix="/goals", tags=["Metas"])
 app.include_router(alerts.router, prefix="/alerts", tags=["Alertas"])
 app.include_router(advice.router, prefix="/advice", tags=["Conselhos / IA"])
 app.include_router(ai.router, prefix="/ai", tags=["IA"])
+app.include_router(salary.router, prefix="/salary", tags=["Salário"])
+app.include_router(forecast.router, prefix="/forecast", tags=["Previsão do mês"])
 app.include_router(
     recurring.router, prefix="/recurring-expenses", tags=["Gastos Recorrentes"]
 )

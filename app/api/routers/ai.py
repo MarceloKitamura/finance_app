@@ -9,13 +9,34 @@ usa isso para PREENCHER automaticamente a categoria enquanto o usuário
 digita a descrição da transação.
 """
 
+import os
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_ai_service
-from app.api.schemas import CategorySuggestionOut
+from app.api.schemas import AIStatusOut, CategorySuggestionOut
 from app.services.ai_service import AIService
+from app.utils.env import load_env_file
 
 router = APIRouter()
+
+
+@router.get("/status", response_model=AIStatusOut)
+def ai_status():
+    """Diz se as integrações de IA (Groq / OpenAI) estão configuradas.
+
+    O frontend usa isto para mostrar um aviso amigável de "configure sua chave"
+    quando a IA está rodando só com as regras offline. Não expõe a chave em si.
+    """
+    load_env_file()  # garante o .env carregado mesmo sem outro import antes.
+    groq = bool(os.getenv("GROQ_API_KEY"))
+    openai = bool(os.getenv("OPENAI_API_KEY"))
+    return AIStatusOut(
+        groq_configured=groq,
+        openai_configured=openai,
+        advice_provider="groq" if groq else "offline",
+        category_provider="openai" if openai else "offline",
+    )
 
 
 @router.get("/suggest-category", response_model=CategorySuggestionOut)

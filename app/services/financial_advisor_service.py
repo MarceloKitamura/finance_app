@@ -37,12 +37,12 @@ import re
 import urllib.request
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Callable, Optional
 
 from app.constants.transaction_types import TYPE_EXPENSE
 from app.repositories.transaction_repository import TransactionRepository
 from app.services.report_service import ReportService
+from app.utils.env import load_env_file
 from app.utils.logger import get_logger
 from app.utils.money_utils import format_brl
 
@@ -52,35 +52,10 @@ logger = get_logger(__name__)
 # ───────────────────────────────────────────────────────────
 # Carregamento do .env (sem dependências externas)
 # ───────────────────────────────────────────────────────────
-# A GROQ_API_KEY fica no arquivo .env na raiz do projeto. Como o projeto
-# evita dependências extras, lemos o .env com um parser simples da stdlib
-# em vez de usar python-dotenv. Variáveis já definidas no ambiente têm
-# prioridade — o .env nunca sobrescreve o que já existe.
-
-def _load_env_file() -> None:
-    """Lê o .env da raiz do projeto e popula os.environ (se ainda não estiver)."""
-    # __file__ = app/services/financial_advisor_service.py → raiz = 2 níveis acima.
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
-        return
-    try:
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            # Ignora linhas vazias, comentários e linhas sem "=".
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            key = key.strip()
-            # Tira espaços e aspas que às vezes envolvem o valor.
-            value = value.strip().strip('"').strip("'").strip()
-            if key:
-                os.environ.setdefault(key, value)
-    except OSError:
-        # Sem .env legível seguimos sem LLM — não é um erro fatal.
-        pass
-
-
-_load_env_file()
+# A GROQ_API_KEY fica no .env na raiz. Carregamos via util central (idempotente
+# e compartilhado com o ai_service), ANTES de ler as constantes abaixo, para que
+# os.getenv enxergue a chave independentemente da ordem de import.
+load_env_file()
 
 
 # ───────────────────────────────────────────────────────────
@@ -166,6 +141,7 @@ class FinancialAdvisorService:
         repository: TransactionRepository | None = None,
         use_llm: bool = False,
         goal_service=None,
+        forecast_service=None,
     ):
         self.report_service = report_service or ReportService()
         self.repository = repository or TransactionRepository()
@@ -178,6 +154,10 @@ class FinancialAdvisorService:
             from app.services.goal_service import GoalService
             goal_service = GoalService(report_service=self.report_service)
         self.goal_service = goal_service
+        # ForecastService dá à IA a previsão DETERMINÍSTICA de fim de mês
+        # (saldo previsto, quanto falta receber/pagar). Opcional: se None, a
+        # análise segue sem esses números (compatível com o comportamento antigo).
+        self.forecast_service = forecast_service
         # Cache do score por (ano, mês). Guarda (contagem_de_transações, resultado):
         # se a contagem do mês não mudou, devolvemos o cache e NÃO rechamamos a Groq.
         self._score_cache: dict[tuple[int, int], tuple[int, dict]] = {}
@@ -257,26 +237,33 @@ class FinancialAdvisorService:
         summary = self.report_service.monthly_summary(year, month)
         count = summary["count"]
 
+        # Contexto da previsão determinística (saldo previsto, falta receber/
+        # pagar). Pode ser None se nenhum ForecastService foi injetado.
+        fin_ctx = self._forecast_ai_context(year, month)
+        # A assinatura entra na chave do cache: se o salário/previsão mudar
+        # (mesmo sem mudar a contagem de transações), o conselho é recalculado.
+        sig = (count, fin_ctx.get("signature") if fin_ctx else None)
+
         cached = self._score_cache.get((year, month))
-        if cached and cached[0] == count:
+        if cached and cached[0] == sig:
             return cached[1]
 
         breakdown = self._score_breakdown(year, month, summary)
         score = round(sum(b["score"] * b["weight"] for b in breakdown.values()) / 100)
         faixa = self._faixa(score)
-        forecast = self.forecast_balance(year, month, summary)
+        forecast = self._forecast_block(year, month, summary, fin_ctx)
 
         # Groq-first: quando há chave, a IA escreve a análise inteira (resumo,
         # insights e recomendações). Sem chave/erro, caímos nas regras locais.
         llm_used = False
         insights: list[Insight] = []
         if self.use_llm and self._groq_available() and count > 0:
-            llm_insights = self._llm_analysis(score, faixa, breakdown, forecast, summary)
+            llm_insights = self._llm_analysis(year, month, score, faixa, breakdown, forecast, summary, fin_ctx)
             if llm_insights:
                 insights = llm_insights
                 llm_used = True
         if not insights:
-            insights = self._score_insights(score, faixa, breakdown, forecast, summary)
+            insights = self._score_insights(score, faixa, breakdown, forecast, summary, fin_ctx)
 
         result = {
             "year": year,
@@ -288,8 +275,25 @@ class FinancialAdvisorService:
             "insights": [self._insight_to_dict(i) for i in insights],
             "llm_used": llm_used,
         }
-        self._score_cache[(year, month)] = (count, result)
+        self._score_cache[(year, month)] = (sig, result)
         return result
+
+    def _forecast_ai_context(self, year: int, month: int) -> Optional[dict]:
+        """Monta o contexto da previsão determinística para a IA.
+
+        Devolve None se nenhum ForecastService foi injetado (mantém o
+        comportamento antigo). Tolerante a falhas: qualquer erro na previsão
+        não pode derrubar o score/conselho.
+        """
+        if self.forecast_service is None:
+            return None
+        try:
+            ctx = self.forecast_service.ai_context(year, month)
+            ctx["signature"] = self.forecast_service.signature(year, month)
+            return ctx
+        except Exception:
+            logger.exception("Falha ao montar contexto de previsão (ignorada)")
+            return None
 
     def _score_breakdown(self, year: int, month: int, summary: dict) -> dict:
         """Calcula as 5 sub-métricas (cada uma 0-100) com seus pesos."""
@@ -337,6 +341,39 @@ class FinancialAdvisorService:
             "metas": {"score": round(metas), "weight": 10, "label": "Progresso de metas"},
         }
 
+    def _forecast_block(self, year, month, summary, fin_ctx) -> dict:
+        """Bloco de previsão da página de IA — usa a previsão DETERMINÍSTICA.
+
+        Antes havia DUAS previsões brigando: a determinística (saldo + salário a
+        receber − contas a pagar) e uma estatística que extrapolava o ritmo de
+        gastos E ignorava o salário (mostrava receita prevista R$ 0). Esta última
+        confundia. Agora, quando há ForecastService (fin_ctx), usamos só a
+        determinística; sem ele, caímos na estatística (compatibilidade).
+
+        Mapeamento para o formato {projected_balance, projected_income,
+        projected_expense, is_projection}:
+          - mês corrente/futuro: income = ainda a receber, expense = ainda a
+            pagar, balance = saldo previsto (saldo atual + a receber − a pagar);
+          - mês fechado: números reais do mês.
+        """
+        is_proj = (year, month) >= (date.today().year, date.today().month)
+        if fin_ctx and is_proj:
+            return {
+                "projected_balance": round(fin_ctx["projected_balance"], 2),
+                "projected_income": round(fin_ctx["remaining_to_receive"], 2),
+                "projected_expense": round(fin_ctx["remaining_to_pay"], 2),
+                "is_projection": True,
+            }
+        if fin_ctx and not is_proj:
+            return {
+                "projected_balance": round(summary["balance"], 2),
+                "projected_income": round(summary["total_incomes"], 2),
+                "projected_expense": round(summary["total_expenses"], 2),
+                "is_projection": False,
+            }
+        # Sem ForecastService injetado: mantém a extrapolação estatística.
+        return self.forecast_balance(year, month, summary)
+
     def forecast_balance(self, year: int, month: int, summary: dict | None = None) -> dict:
         """Projeta o saldo do mês ao final.
 
@@ -344,6 +381,9 @@ class FinancialAdvisorService:
         receitas já lançadas ou a média dos meses anteriores (o que for maior,
         já que salário costuma cair perto do fim do mês). Para meses fechados,
         devolve o saldo real.
+
+        Mantido como FALLBACK: só é usado quando não há ForecastService (ver
+        _forecast_block). A análise principal usa a previsão determinística.
         """
         summary = summary or self.report_service.monthly_summary(year, month)
         incomes = summary["total_incomes"]
@@ -388,7 +428,7 @@ class FinancialAdvisorService:
 
     # ---------- Insights do score (regras) ----------
 
-    def _score_insights(self, score, faixa, breakdown, forecast, summary) -> list[Insight]:
+    def _score_insights(self, score, faixa, breakdown, forecast, summary, fin_ctx=None) -> list[Insight]:
         insights: list[Insight] = []
         sev = {"saudavel": SEVERITY_SUCCESS, "atencao": SEVERITY_WARNING, "critica": SEVERITY_DANGER}[faixa]
         insights.append(Insight(
@@ -414,9 +454,52 @@ class FinancialAdvisorService:
                 message=f"'{melhor['label']}' está ótimo ({melhor['score']}/100). Continue assim!",
             ))
 
-        # Previsão.
-        insights.append(self._forecast_insight(forecast))
+        # Previsão de fim de mês: SÓ a determinística (salário + contas). Sem
+        # ForecastService, cai na estatística (ritmo de gastos) como fallback.
+        det = self._deterministic_forecast_insight(fin_ctx)
+        insights.append(det if det is not None else self._forecast_insight(forecast))
         return insights
+
+    def _deterministic_forecast_insight(self, fin_ctx: Optional[dict]) -> Optional[Insight]:
+        """Conselho baseado na previsão determinística do ForecastService.
+
+        Usa os números concretos (saldo previsto, quanto falta receber/pagar,
+        status) para um conselho prático no estilo do exemplo pedido. Vale
+        tanto no modo offline (regras) quanto como fallback do LLM.
+        """
+        if not fin_ctx:
+            return None
+        status = fin_ctx.get("status")
+        projected = fin_ctx.get("projected_balance", 0.0)
+        to_receive = fin_ctx.get("remaining_to_receive", 0.0)
+        to_pay = fin_ctx.get("remaining_to_pay", 0.0)
+
+        base = (
+            f"Com base na sua previsão, você deve fechar o mês com "
+            f"aproximadamente {format_brl(projected)}. "
+            f"Ainda faltam {format_brl(to_receive)} a receber e "
+            f"{format_brl(to_pay)} a pagar até o fim do mês."
+        )
+        if status == "risco":
+            return Insight(
+                category="alerta", severity=SEVERITY_DANGER,
+                title="Risco de fechar o mês no vermelho",
+                message=base + " Evite novos gastos não essenciais e, se possível, "
+                               "antecipe entradas ou renegocie contas.",
+            )
+        if status == "atencao":
+            return Insight(
+                category="economia", severity=SEVERITY_WARNING,
+                title="Mês apertado — segure os gastos",
+                message=base + " A margem está pequena: o ideal é evitar gastos com "
+                               "lazer e compras até o próximo pagamento.",
+            )
+        return Insight(
+            category="resumo", severity=SEVERITY_SUCCESS,
+            title="Previsão do mês positiva",
+            message=base + " Há folga no orçamento — bom momento para reforçar a "
+                           "reserva ou adiantar uma meta.",
+        )
 
     def _forecast_insight(self, forecast: dict) -> Insight:
         """Insight da previsão de fim de mês (usado nas regras e na análise Groq)."""
@@ -436,36 +519,58 @@ class FinancialAdvisorService:
             message=msg,
         )
 
-    def _llm_analysis(self, score, faixa, breakdown, forecast, summary) -> list[Insight]:
+    def _llm_analysis(self, year, month, score, faixa, breakdown, forecast, summary, fin_ctx=None) -> list[Insight]:
         """Pede à Groq a análise COMPLETA (resumo + insights + recomendações).
 
         A Groq devolve um JSON estruturado, que convertemos em Insights. É a
         fonte principal da página de IA quando há chave configurada. Tolerante
         a falha: qualquer erro devolve [] e o chamador cai nas regras locais.
+
+        Para soar como um GESTOR (e não um conselho genérico), alimentamos o
+        modelo com fatos específicos: cada categoria com % e variação vs a média
+        histórica, os maiores gastos individuais, assinaturas, a carga de
+        faturas/parcelas já comprometidas nos próximos meses, metas e a previsão.
         """
         try:
             linhas = "; ".join(f"{b['label']}: {b['score']}/100" for b in breakdown.values())
-            top = list(summary["expenses_by_category"].items())[:5]
-            cats = "; ".join(f"{c}: {format_brl(v)}" for c, v in top) or "sem despesas"
+            fatos = self._llm_facts(year, month, summary)
+            # Bloco extra com a previsão determinística (salário + recorrentes +
+            # contas). Só entra se houver ForecastService injetado.
+            previsao_txt = self._forecast_prompt_block(fin_ctx, forecast)
             prompt = (
-                "Você é um consultor financeiro pessoal brasileiro, experiente, "
-                "simpático e direto. Analise os dados e responda APENAS um JSON "
-                "VÁLIDO (sem markdown, sem texto fora do JSON), neste formato:\n"
-                '{"resumo": "1-2 frases sobre a saúde financeira", '
-                '"insights": [{"titulo": "curto", "texto": "1-2 frases", '
-                '"severidade": "success|info|warning|danger"}], '
-                '"recomendacoes": ["ação prática 1", "ação prática 2", "ação prática 3"]}\n\n'
-                "Gere de 3 a 4 insights e de 2 a 3 recomendações práticas. "
-                "Use SOMENTE os números fornecidos; não invente dados.\n\n"
-                f"Score geral: {score}/100 (faixa {self._faixa_label(faixa)}).\n"
+                "Você é o GESTOR FINANCEIRO PESSOAL deste usuário (brasileiro), no "
+                "estilo de um consultor que acompanha de perto e fala com franqueza. "
+                "Sua análise tem que ser ESPECÍFICA e ACIONÁVEL: cite categorias, "
+                "valores em reais e percentuais REAIS dos dados; aponte exatamente "
+                "ONDE cortar e QUANTO dá para economizar; comente os maiores gastos "
+                "pelo nome; avalie a carga de parcelas/faturas futuras e o risco de "
+                "fechar o mês no vermelho; diga claramente se dá para gastar mais ou "
+                "se precisa segurar. Nada de conselho genérico tipo 'monte um "
+                "orçamento' — fale do caso REAL abaixo.\n\n"
+                "Responda APENAS um JSON VÁLIDO (sem markdown, sem texto fora do "
+                "JSON), neste formato:\n"
+                '{"resumo": "2-3 frases com diagnóstico específico citando números", '
+                '"insights": [{"titulo": "curto e concreto", "texto": "1-2 frases '
+                'com números reais", "severidade": "success|info|warning|danger"}], '
+                '"recomendacoes": ["ação prática COM valor/categoria", "...", "..."]}\n\n'
+                "Gere de 4 a 5 insights (cada um sobre um ponto DIFERENTE: poupança, "
+                "categoria que pesou, parcelas futuras, previsão de fim de mês, metas) "
+                "e de 3 a 4 recomendações, cada uma com um número concreto (ex.: "
+                "'cortar ~R$ 150/mês em X'). Use SOMENTE os números fornecidos; "
+                "não invente dados.\n\n"
+                f"== DADOS DO MÊS ({month:02d}/{year}) ==\n"
+                f"Score de saúde: {score}/100 (faixa {self._faixa_label(faixa)}).\n"
                 f"Sub-métricas: {linhas}.\n"
                 f"Receitas: {format_brl(summary['total_incomes'])}; "
                 f"Despesas: {format_brl(summary['total_expenses'])}; "
-                f"Saldo: {format_brl(summary['balance'])}.\n"
-                f"Maiores despesas: {cats}.\n"
-                f"Previsão de saldo no fim do mês: {format_brl(forecast['projected_balance'])}.\n"
+                f"Saldo: {format_brl(summary['balance'])} "
+                f"({summary['count']} transações).\n"
+                f"{fatos}\n"
+                f"{previsao_txt}"
             )
-            data = self._extract_json(self._groq_generate(prompt))
+            data = self._extract_json(
+                self._groq_generate(prompt, max_tokens=1100, temperature=0.5)
+            )
             if not data:
                 return []
 
@@ -505,12 +610,145 @@ class FinancialAdvisorService:
                     category="economia", severity=SEVERITY_INFO,
                     title="Recomendações da IA", message=msg, source=SOURCE_LLM,
                 ))
-            # A previsão (número determinístico) entra sempre ao final.
-            insights.append(self._forecast_insight(forecast))
+            # Previsão de fim de mês: só a determinística (sem duplicar com a
+            # estatística). Estatística só como fallback se não houver fin_ctx.
+            det = self._deterministic_forecast_insight(fin_ctx)
+            insights.append(det if det is not None else self._forecast_insight(forecast))
             return insights
         except Exception:
             logger.exception("Falha na análise Groq (ignorada)")
             return []
+
+    def _llm_facts(self, year: int, month: int, summary: dict) -> str:
+        """Bloco de FATOS específicos do mês para a IA soar como gestor.
+
+        Inclui: categorias com % do total e variação vs média histórica, os
+        maiores gastos individuais, assinaturas, a carga de faturas futuras já
+        comprometidas e o progresso de metas. Só entram as seções com dados.
+        """
+        linhas: list[str] = []
+        total_exp = summary["total_expenses"]
+        expenses = summary["expenses_by_category"]
+        averages, months_used = self._category_averages(year, month, months_back=3)
+
+        # Categorias: valor, % do total e variação vs média dos últimos meses.
+        if expenses:
+            partes = []
+            for cat, val in list(expenses.items())[:6]:
+                pct = (val / total_exp * 100) if total_exp else 0
+                avg = averages.get(cat)
+                if avg and avg > 0:
+                    delta = (val / avg - 1) * 100
+                    sinal = "+" if delta >= 0 else ""
+                    partes.append(
+                        f"{cat} {format_brl(val)} ({pct:.0f}% do total, "
+                        f"{sinal}{delta:.0f}% vs média {months_used}m)"
+                    )
+                else:
+                    partes.append(f"{cat} {format_brl(val)} ({pct:.0f}% do total)")
+            linhas.append("Gastos por categoria: " + "; ".join(partes) + ".")
+
+        # Maiores gastos individuais (com parcela, se houver).
+        exps = [t for t in summary["transactions"] if t.type == TYPE_EXPENSE]
+        if exps:
+            maiores = sorted(exps, key=lambda t: t.amount, reverse=True)[:3]
+            partes = []
+            for t in maiores:
+                extra = (
+                    f" (parcela {t.installment_no}/{t.installments_total})"
+                    if t.installments_total > 1 else ""
+                )
+                partes.append(f"{t.description} {format_brl(t.amount)} [{t.category}]{extra}")
+            linhas.append("Maiores gastos do mês: " + "; ".join(partes) + ".")
+
+        # Assinaturas (gasto recorrente fácil de cortar).
+        subs = expenses.get("Assinaturas", 0.0)
+        if subs > 0:
+            n = sum(1 for t in exps if t.category == "Assinaturas")
+            linhas.append(f"Assinaturas: {n} cobrança(s) somando {format_brl(subs)}.")
+
+        # Carga de faturas/parcelas já comprometidas nos próximos meses.
+        futuro = self._future_card_load(year, month, months=3)
+        if futuro["total"] > 0:
+            meses = "; ".join(f"{lbl} {format_brl(v)}" for lbl, v in futuro["por_mes"])
+            linhas.append(
+                f"Faturas de cartão já comprometidas adiante: {meses} "
+                f"(total {format_brl(futuro['total'])} nos próximos meses)."
+            )
+
+        metas_txt = self._goals_facts(year, month)
+        if metas_txt:
+            linhas.append(metas_txt)
+
+        return "\n".join(f"- {l}" for l in linhas)
+
+    def _future_card_load(self, year: int, month: int, months: int = 3) -> dict:
+        """Soma as faturas de cartão dos próximos `months` meses (parcelas já lançadas)."""
+        por_mes = []
+        total = 0.0
+        for i in range(1, months + 1):
+            y, m = self._add_months(year, month, i)
+            invoices = self.repository.expenses_by_card_in_month(y, m)
+            s = sum(invoices.values())
+            if s > 0:
+                por_mes.append((self._month_label(y, m), s))
+                total += s
+        return {"por_mes": por_mes, "total": total}
+
+    def _goals_facts(self, year: int, month: int) -> str:
+        """Texto curto com o progresso das metas (vazio se não houver)."""
+        try:
+            metas = self.goal_service.list_with_progress(year, month)
+        except Exception:
+            return ""
+        if not metas:
+            return ""
+        partes = []
+        for m in metas[:4]:
+            nome = m.get("name", "meta")
+            pct = m.get("pct", 0)
+            if m.get("kind") == "limite_gasto":
+                estado = "ESTOUROU o teto" if m.get("exceeded") else f"{pct:.0f}% do teto"
+                partes.append(f"{nome} (limite): {estado}")
+            else:
+                partes.append(f"{nome}: {pct:.0f}% da meta")
+        return "Metas: " + "; ".join(partes) + "."
+
+    @staticmethod
+    def _add_months(year: int, month: int, count: int) -> tuple[int, int]:
+        """Avança `count` meses a partir de (year, month)."""
+        index = (year * 12 + (month - 1)) + count
+        return index // 12, (index % 12) + 1
+
+    @staticmethod
+    def _month_label(year: int, month: int) -> str:
+        nomes = [
+            "jan", "fev", "mar", "abr", "mai", "jun",
+            "jul", "ago", "set", "out", "nov", "dez",
+        ]
+        return f"{nomes[month - 1]}/{year}"
+
+    @staticmethod
+    def _forecast_prompt_block(fin_ctx: Optional[dict], forecast: dict) -> str:
+        """Texto com a previsão para o prompt da Groq.
+
+        Prefere a previsão DETERMINÍSTICA (salário + recorrentes + contas)
+        quando disponível; senão, usa a estatística. Assim a IA sempre tem
+        noção de quanto falta receber/pagar e do risco de fechar negativo.
+        """
+        if fin_ctx:
+            return (
+                f"Saldo atual: {format_brl(fin_ctx['current_balance'])}.\n"
+                f"Previsão de saldo no fim do mês: {format_brl(fin_ctx['projected_balance'])}.\n"
+                f"Ainda falta RECEBER no mês: {format_brl(fin_ctx['remaining_to_receive'])}.\n"
+                f"Ainda falta PAGAR no mês: {format_brl(fin_ctx['remaining_to_pay'])} "
+                f"(recorrentes {format_brl(fin_ctx['future_recurring'])}, "
+                f"contas a pagar {format_brl(fin_ctx['future_vencimentos'])}, "
+                f"fatura do cartão {format_brl(fin_ctx.get('future_card', 0.0))}).\n"
+                f"Salário líquido estimado: {format_brl(fin_ctx['net_salary'])}.\n"
+                f"Status da previsão: {fin_ctx['status']}.\n"
+            )
+        return f"Previsão de saldo no fim do mês: {format_brl(forecast['projected_balance'])}.\n"
 
     @staticmethod
     def _extract_json(raw: str):
@@ -1007,18 +1245,22 @@ class FinancialAdvisorService:
         )
 
     @staticmethod
-    def _groq_generate(prompt: str) -> str:
+    def _groq_generate(prompt: str, max_tokens: int = 800, temperature: float = 0.4) -> str:
         """Chama a API de chat da Groq e devolve o texto gerado.
 
         Usa só a biblioteca padrão (urllib) — nenhuma dependência extra.
         A Groq é compatível com a OpenAI: mandamos uma lista de mensagens
         em /chat/completions e lemos a resposta em choices[0].message.content.
+
+        max_tokens/temperature são ajustáveis: a análise completa (gestor) pede
+        mais espaço e um pouco mais de temperatura para soar específica; o
+        conselho curto usa o padrão mais conservador.
         """
         payload = json.dumps({
             "model": GROQ_MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            # temperatura baixa = conselho mais consistente e menos "viajado".
-            "temperature": 0.4,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
             "stream": False,
         }).encode("utf-8")
 
@@ -1036,8 +1278,20 @@ class FinancialAdvisorService:
             method="POST",
         )
 
-        with urllib.request.urlopen(req, timeout=GROQ_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(req, timeout=GROQ_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # 401/403 = chave inválida/rejeitada (causa mais comum: chave
+            # incompleta/colada pela metade). Log claro para o usuário saber
+            # que NÃO é falha do modelo — e a IA cai no modo offline (regras).
+            if exc.code in (401, 403):
+                logger.error(
+                    "Groq recusou a chave (HTTP %s). Verifique GROQ_API_KEY no .env "
+                    "— a chave deve ter ~56 caracteres (gsk_ + 52). Usando modo offline.",
+                    exc.code,
+                )
+            raise
 
         # A API devolve o texto no campo choices[0].message.content.
         choices = data.get("choices") or []

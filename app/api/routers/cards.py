@@ -17,7 +17,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_card_service
-from app.api.schemas import CardCreate, CardOut, MessageOut
+from app.api.schemas import CardCreate, CardOut, CardStatementsOut, MessageOut
 from app.services.card_service import CardService
 
 router = APIRouter()
@@ -31,6 +31,26 @@ def list_cards(
 ):
     """Lista os cartões com a fatura/uso do mês informado."""
     return [CardOut(**c) for c in service.list_with_usage(year, month)]
+
+
+@router.get("/{card_id}/statements", response_model=CardStatementsOut)
+def card_statements(
+    card_id: int,
+    year: int = Query(default=date.today().year, description="Ano da fatura inicial."),
+    month: int = Query(default=date.today().month, ge=1, le=12, description="Mês inicial (1-12)."),
+    months_ahead: int = Query(default=6, ge=0, le=24, description="Quantas faturas futuras incluir."),
+    service: CardService = Depends(get_card_service),
+):
+    """Fatura detalhada do mês + as próximas faturas (com parcelas futuras).
+
+    Devolve, do mês informado até `months_ahead` meses à frente, cada fatura
+    com seus lançamentos. 404 se o cartão não existir.
+    """
+    try:
+        data = service.statements(card_id, year, month, months_ahead)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return CardStatementsOut(**data)
 
 
 @router.post("", response_model=CardOut, status_code=status.HTTP_201_CREATED)

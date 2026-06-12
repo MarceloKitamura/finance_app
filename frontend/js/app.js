@@ -82,6 +82,38 @@
       location.href = "pages/lancamentos.html";
     });
 
+    // "Modo sem salário": preferência persistida (localStorage). Quando
+    // desligado, a previsão ignora o salário ainda a receber.
+    let incluirSalario = localStorage.getItem("fc_incluir_salario") !== "0";
+
+    function atualizarBotaoSalario() {
+      const btn = $("#btn-toggle-salario");
+      if (!btn) return;
+      btn.innerHTML = incluirSalario
+        ? `${ic("check", { size: 14 })} Salário incluído`
+        : `${ic("wallet", { size: 14 })} Sem salário`;
+      btn.classList.toggle("btn-primary", !incluirSalario);
+    }
+
+    // Recarrega só a previsão (sem recarregar o dashboard inteiro).
+    async function carregarPrevisao() {
+      const { year, month } = getPeriod();
+      try {
+        const forecast = await Api.getForecast(year, month, incluirSalario);
+        renderForecast(forecast);
+      } catch (e) {
+        console.warn("Falha ao carregar previsão:", e.message);
+        $("#forecast-section").hidden = true;
+      }
+    }
+
+    $("#btn-toggle-salario")?.addEventListener("click", async () => {
+      incluirSalario = !incluirSalario;
+      localStorage.setItem("fc_incluir_salario", incluirSalario ? "1" : "0");
+      atualizarBotaoSalario();
+      await carregarPrevisao();
+    });
+
     async function load() {
       const { year, month } = getPeriod();
       let summary;
@@ -91,6 +123,17 @@
       UI.clearStatus();
 
       UI.renderKPIs(summary);
+
+      // Previsão do mês (saldo previsto até o fim do mês). A seção some se a
+      // API de previsão falhar — não derruba o resto do dashboard.
+      atualizarBotaoSalario();
+      try {
+        const forecast = await Api.getForecast(year, month, incluirSalario);
+        renderForecast(forecast);
+      } catch (e) {
+        console.warn("Falha ao carregar previsão:", e.message);
+        $("#forecast-section").hidden = true;
+      }
 
       // Alertas pendentes (não lidos) do mês selecionado. Seção some se vazia.
       try {
@@ -169,6 +212,61 @@
         : "Sem dados suficientes para um conselho neste mês.";
     }
 
+    /**
+     * Desenha o bloco "Previsão do mês". A cor (status) destaca se o mês
+     * tende a fechar positivo, apertado ou no vermelho.
+     */
+    function renderForecast(f) {
+      const sec = $("#forecast-section");
+      if (!f) { sec.hidden = true; return; }
+      sec.hidden = false;
+
+      // Mapeia o status do backend para rótulo + classe de cor (CSS).
+      const STATUS = {
+        positivo: { txt: "Positivo", cls: "is-pos" },
+        atencao:  { txt: "Atenção — mês apertado", cls: "is-warn" },
+        risco:    { txt: "Risco de fechar no vermelho", cls: "is-neg" },
+      };
+      const st = STATUS[f.status] || STATUS.atencao;
+      sec.classList.remove("is-pos", "is-warn", "is-neg");
+      sec.classList.add(st.cls);
+      $("#forecast-badge").textContent = st.txt;
+      $("#forecast-badge").className = "forecast-badge " + st.cls;
+
+      // Próximo recebimento de salário (1ª parcela ainda não recebida).
+      const parcelas = (f.salary && f.salary.installments) || [];
+      const prox = parcelas.find((p) => !p.received);
+      // included=false → "modo sem salário" ligado: o salário existe mas está
+      // fora da projeção. Mostramos isso de forma clara.
+      const salarioForaDaPrevisao = f.salary && f.salary.included === false;
+      let salarioLinha;
+      if (f.salary && f.salary.enabled && salarioForaDaPrevisao) {
+        salarioLinha = `<div class="fc-item muted"><span>Salário fora da previsão (modo sem salário)</span><strong>${formatarMoeda(f.salary.net)}</strong></div>`;
+      } else if (f.salary && f.salary.enabled) {
+        salarioLinha = `<div class="fc-item"><span>Salário líquido estimado</span><strong>${formatarMoeda(f.salary.net)}</strong></div>
+           ${parcelas.map((p) => `<div class="fc-item fc-sub"><span>Recebimento dia ${p.day}${p.received ? " (recebido)" : ""}</span><span>${formatarMoeda(p.amount)}</span></div>`).join("")}
+           ${prox ? `<div class="fc-item fc-sub"><span>Próximo recebimento</span><span>${formatarData(prox.date)} • ${formatarMoeda(prox.amount)}</span></div>` : ""}`;
+      } else {
+        salarioLinha = `<div class="fc-item muted"><span>Salário não configurado</span><a href="pages/configuracoes.html">Configurar</a></div>`;
+      }
+
+      $("#forecast-body").innerHTML = `
+        <div class="fc-hero ${st.cls}">
+          <span class="fc-hero-label">Saldo estimado no fim do mês</span>
+          <span class="fc-hero-value">${formatarMoeda(f.projected_balance)}</span>
+        </div>
+        <div class="fc-grid">
+          <div class="fc-item"><span>Saldo atual</span><strong>${formatarMoeda(f.current_balance)}</strong></div>
+          <div class="fc-item"><span>Falta receber no mês</span><strong class="income">${formatarMoeda(f.remaining_to_receive)}</strong></div>
+          <div class="fc-item"><span>Falta pagar no mês</span><strong class="expense">${formatarMoeda(f.remaining_to_pay)}</strong></div>
+          <div class="fc-item fc-sub"><span>• Gastos recorrentes</span><span>${formatarMoeda(f.future_recurring)}</span></div>
+          <div class="fc-item fc-sub"><span>• Contas a pagar</span><span>${formatarMoeda(f.future_vencimentos)}</span></div>
+          <div class="fc-item fc-sub"><span>• Fatura do cartão</span><span>${formatarMoeda(f.future_card || 0)}</span></div>
+        </div>
+        <div class="fc-salary">${salarioLinha}</div>
+        <p class="muted fc-note">Estimativa baseada no seu salário, gastos recorrentes e contas a pagar. Ajuste o salário em <a href="pages/configuracoes.html">Configurações</a>.</p>`;
+    }
+
     await load();
   }
 
@@ -195,14 +293,25 @@
     UI.fillSelect($("#card"), META.cards || [], { keepFirst: true });
     $("#date").value = hojeISO();
     aplicarCategorias();
+    aplicarOrigem();
 
     $$('input[name="type"]').forEach((r) =>
       r.addEventListener("change", () => {
         aplicarCategorias();
+        aplicarOrigem();   // receita sempre é conta; despesa pode ser cartão
         // Tipo mudou: as categorias mudam, então liberamos a sugestão de novo.
         categoriaManual = false;
         sugerirCategoria();
       }));
+
+    // Origem do gasto (conta x cartão) e parcelamento.
+    $$('input[name="payment_origin"]').forEach((r) =>
+      r.addEventListener("change", aplicarOrigem));
+    $("#card").addEventListener("change", atualizarPreviewParcelas);
+    $("#installments").addEventListener("input", atualizarPreviewParcelas);
+    $("#amount").addEventListener("input", atualizarPreviewParcelas);
+    $("#description").addEventListener("input", atualizarPreviewParcelas);
+    $("#date").addEventListener("change", atualizarPreviewParcelas);
     $("#category").addEventListener("change", () => {
       $("#custom-category-wrap").hidden = $("#category").value !== "Outros";
       // Mexeu na categoria: respeita a escolha e some o selo da IA.
@@ -341,6 +450,89 @@
       $("#custom-category-wrap").hidden = $("#category").value !== "Outros";
     }
 
+    /** Lê o tipo + origem escolhidos e devolve "account" ou "card". */
+    function origemAtual() {
+      const type = document.querySelector('input[name="type"]:checked').value;
+      if (type === "receita") return "account";   // receita é sempre conta
+      const r = document.querySelector('input[name="payment_origin"]:checked');
+      return r ? r.value : "account";
+    }
+
+    /**
+     * Mostra/esconde os campos conforme a origem do gasto:
+     * - Conta  → mostra "Conta / saldo"; esconde cartão e parcelas.
+     * - Cartão → mostra cartão + parcelas + prévia das faturas; esconde conta.
+     * Receita esconde o seletor de origem (é sempre conta).
+     */
+    function aplicarOrigem() {
+      const type = document.querySelector('input[name="type"]:checked').value;
+      const isReceita = type === "receita";
+      const origin = origemAtual();
+      $("#origin-field").hidden = isReceita;
+      $("#account-wrap").hidden = origin === "card";
+      $("#card-wrap").hidden = origin !== "card";
+      atualizarPreviewParcelas();
+    }
+
+    /** Divide um total em N parcelas (centavos da diferença na última). */
+    function dividirParcelas(total, n) {
+      const totalCents = Math.round(total * 100);
+      const base = Math.floor(totalCents / n);
+      const resto = totalCents - base * n;
+      const arr = Array(n).fill(base);
+      arr[n - 1] += resto;
+      return arr.map((c) => c / 100);
+    }
+
+    /** Avança `k` meses a partir de uma data ISO; devolve {mes, ano}. */
+    function somaMeses(iso, k) {
+      const d = Utils.parseDate(iso) || new Date();
+      const idx = d.getFullYear() * 12 + d.getMonth() + k;
+      return { ano: Math.floor(idx / 12), mes: (idx % 12) + 1 };
+    }
+
+    /** Atualiza a dica "12x de R$X" e a prévia das faturas afetadas. */
+    function atualizarPreviewParcelas() {
+      const hint = $("#installment-hint");
+      const box = $("#installment-preview");
+      if (origemAtual() !== "card") { box.hidden = true; hint.textContent = ""; return; }
+
+      const total = parseFloat($("#amount").value);
+      let n = parseInt($("#installments").value, 10);
+      if (!Number.isFinite(n) || n < 1) n = 1;
+      const desc = ($("#description").value || "Compra").trim();
+      const dataISO = $("#date").value || hojeISO();
+
+      if (!(total > 0)) {
+        hint.textContent = "Informe o valor total da compra para ver as parcelas.";
+        box.hidden = true;
+        return;
+      }
+
+      const valores = dividirParcelas(total, n);
+      hint.textContent = n === 1
+        ? `À vista no cartão: ${formatarMoeda(total)}`
+        : `${n}x de ${formatarMoeda(valores[0])} (última: ${formatarMoeda(valores[n - 1])})`;
+
+      // Lista das faturas (limita a 12 linhas para não poluir).
+      const LIM = 12;
+      const linhas = [];
+      for (let i = 0; i < Math.min(n, LIM); i++) {
+        const { mes, ano } = somaMeses(dataISO, i);
+        const rotulo = n === 1 ? desc : `${desc} ${i + 1}/${n}`;
+        linhas.push(
+          `<div class="installment-row"><span>${Utils.escapeHtml(rotulo)}</span>` +
+          `<span class="muted">${nomeMes(mes)}/${ano}</span>` +
+          `<span class="num">${formatarMoeda(valores[i])}</span></div>`
+        );
+      }
+      if (n > LIM) linhas.push(`<div class="muted" style="padding:4px 0">+ ${n - LIM} parcela(s)…</div>`);
+      box.innerHTML =
+        `<div class="installment-head muted">Prévia das faturas (o mês exato depende do fechamento do cartão)</div>` +
+        linhas.join("");
+      box.hidden = false;
+    }
+
     function resetForm() {
       $("#form").reset();
       editandoId = null;
@@ -352,8 +544,12 @@
       $("#btn-cancel-edit").hidden = true;
       $("#custom-category-wrap").hidden = true;
       $("#custom-person-wrap").hidden = true;
+      $("#apply-group-wrap").hidden = true;
+      $("#apply-group").checked = false;
       if (typeof esconderSugestoes === "function") esconderSugestoes();
+      $("#installments").value = 1;
       aplicarCategorias();
+      aplicarOrigem();
     }
 
     async function onSubmit(ev) {
@@ -366,6 +562,8 @@
       let spentBy = $("#spent_by").value;
       if (spentBy === "Outro") spentBy = $("#custom-person").value.trim();
 
+      const origin = origemAtual();
+      const ehCartao = origin === "card";
       const payload = {
         date: $("#date").value,
         description: $("#description").value.trim(),
@@ -375,7 +573,9 @@
         payment_method: $("#payment_method").value,
         spent_by: spentBy || "Eu",
         account: $("#account").value || "Carteira",
-        card: $("#card").value || "",
+        card: ehCartao ? ($("#card").value || "") : "",
+        payment_origin: origin,
+        installments: ehCartao ? Math.max(1, parseInt($("#installments").value, 10) || 1) : 1,
       };
 
       const { ok, erros } = validarTransacao(payload);
@@ -391,8 +591,11 @@
           const criada = await Api.createTransaction(payload);
           UI.showMessage("ok", `Transação criada (ID ${criada.id}).`);
         } else {
-          await Api.updateTransaction(editandoId, payload);
-          UI.showMessage("ok", "Transação atualizada.");
+          const aplicarGrupo = !$("#apply-group-wrap").hidden && $("#apply-group").checked;
+          await Api.updateTransaction(editandoId, payload, aplicarGrupo);
+          UI.showMessage("ok", aplicarGrupo
+            ? "Parcela atualizada e aplicada a todas as parcelas da compra."
+            : "Transação atualizada.");
         }
         msg.textContent = "";
         resetForm();
@@ -434,6 +637,12 @@
       }
       // Cartão da transação (vazio = nenhum).
       $("#card").value = (tx.card && [...$("#card").options].some((o) => o.value === tx.card)) ? tx.card : "";
+      // Origem do pagamento (conta x cartão). Edição mexe só nesta parcela.
+      const origem = tx.payment_origin || (tx.card ? "card" : "account");
+      const radioOrigem = document.querySelector(`input[name="payment_origin"][value="${origem}"]`);
+      if (radioOrigem) radioOrigem.checked = true;
+      $("#installments").value = 1;
+      aplicarOrigem();
       if ([...$("#spent_by").options].some((o) => o.value === tx.spent_by)) {
         $("#spent_by").value = tx.spent_by;
         $("#custom-person-wrap").hidden = true;
@@ -447,7 +656,19 @@
       $("#btn-save").innerHTML = ic("save") + " Salvar alterações";
       $("#btn-cancel-edit").hidden = false;
       window.scrollTo({ top: 0, behavior: "smooth" });
-      UI.showMessage("info", "Editar = criar nova versão e remover a antiga (a API não tem update).");
+      // Parcela: oferece propagar os campos compartilhados (quem gastou,
+      // categoria, pagamento) para toda a compra. Valor/data ficam por parcela.
+      const ehParcela = tx.installments_total > 1 && tx.purchase_group;
+      $("#apply-group-wrap").hidden = !ehParcela;
+      $("#apply-group").checked = false;
+      if (ehParcela) {
+        // Conta quantas parcelas DESTA compra existem de fato no sistema
+        // (faturas importadas podem ter só parte das parcelas).
+        const naCompra = todas.filter((t) => t.purchase_group === tx.purchase_group).length;
+        $("#apply-group-label").textContent =
+          `Aplicar quem gastou, categoria e pagamento às ${naCompra} parcela(s) desta compra`;
+        UI.showMessage("info", `Editando a parcela ${tx.installment_no}/${tx.installments_total} — marque a opção abaixo para valer em todas as ${naCompra}.`);
+      }
     }
 
     async function excluir(id) {
@@ -799,6 +1020,117 @@
     $("#acc-cancel").addEventListener("click", resetAccForm);
 
     await carregarContas();
+    await setupSalary();
+  }
+
+  // =========================================================
+  // SUB-VISÃO: SALÁRIO (aba de Configurações)
+  // Carrega a config atual, calcula o líquido e salva alterações.
+  // =========================================================
+  async function setupSalary() {
+    const form = $("#sal-form");
+    if (!form) return;
+
+    // Mostra os campos de valor personalizado só no modo "personalizado".
+    function aplicarSplit() {
+      $("#sal-custom-wrap").hidden = $("#sal-split").value !== "personalizado";
+    }
+    $("#sal-split").addEventListener("change", aplicarSplit);
+
+    /** Converte "Plano:120; Pensão:300" em [{label, amount}]. */
+    function parseOthers(text) {
+      return (text || "")
+        .split(";")
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => {
+          const i = p.lastIndexOf(":");
+          const label = (i >= 0 ? p.slice(0, i) : p).trim() || "Desconto";
+          const amount = parseFloat((i >= 0 ? p.slice(i + 1) : "0").replace(",", ".")) || 0;
+          return { label, amount };
+        })
+        .filter((d) => d.amount > 0);
+    }
+
+    /** Preenche o formulário a partir da config salva. */
+    function preencher(cfg) {
+      $("#sal-gross").value = cfg.gross || 0;
+      $("#sal-dependents").value = cfg.dependents || 0;
+      $("#sal-inss").value = cfg.inss_enabled ? "1" : "0";
+      $("#sal-irrf").value = cfg.irrf_enabled ? "1" : "0";
+      $("#sal-vt").value = cfg.vt_enabled ? "1" : "0";
+      $("#sal-vt-cost").value = cfg.vt_monthly_cost || 0;
+      $("#sal-others").value = (cfg.other_discounts || [])
+        .map((d) => `${d.label}:${d.amount}`).join("; ");
+      $("#sal-day1").value = cfg.pay_day_1 || 15;
+      $("#sal-day2").value = cfg.pay_day_2 || 30;
+      $("#sal-split").value = cfg.split_mode || "metade";
+      $("#sal-amount1").value = cfg.amount_day_1 || 0;
+      $("#sal-amount2").value = cfg.amount_day_2 || 0;
+      $("#sal-enabled").value = cfg.enabled === false ? "0" : "1";
+      aplicarSplit();
+    }
+
+    /** Mostra o detalhamento do líquido + divisão calculados pelo backend. */
+    function renderResultado(data) {
+      const b = data.breakdown, s = data.split;
+      const linha = (label, val, cls = "") =>
+        `<div class="fc-item"><span>${label}</span><strong class="${cls}">${formatarMoeda(val)}</strong></div>`;
+      $("#sal-result").innerHTML = `
+        ${linha("Salário bruto", b.gross)}
+        ${linha("− INSS", b.inss, "expense")}
+        ${linha("− IRRF", b.irrf, "expense")}
+        ${b.vt ? linha("− Vale-transporte", b.vt, "expense") : ""}
+        ${b.other_discounts ? linha("− Outros descontos", b.other_discounts, "expense") : ""}
+        <div class="fc-item" style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px">
+          <span><strong>Salário líquido estimado</strong></span>
+          <strong class="income" style="font-size:1.15rem">${formatarMoeda(b.net)}</strong>
+        </div>
+        ${linha(`Recebimento dia ${s.pay_day_1}`, s.amount_day_1)}
+        ${linha(`Recebimento dia ${s.pay_day_2}`, s.amount_day_2)}`;
+    }
+
+    // Carrega a config atual.
+    try {
+      const data = await Api.getSalary();
+      preencher(data.config);
+      renderResultado(data);
+    } catch (e) {
+      console.warn("Falha ao carregar salário:", e.message);
+    }
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const payload = {
+        gross: parseFloat($("#sal-gross").value) || 0,
+        dependents: parseInt($("#sal-dependents").value, 10) || 0,
+        inss_enabled: $("#sal-inss").value === "1",
+        irrf_enabled: $("#sal-irrf").value === "1",
+        vt_enabled: $("#sal-vt").value === "1",
+        vt_monthly_cost: parseFloat($("#sal-vt-cost").value) || 0,
+        other_discounts: parseOthers($("#sal-others").value),
+        pay_day_1: parseInt($("#sal-day1").value, 10) || 15,
+        pay_day_2: parseInt($("#sal-day2").value, 10) || 30,
+        split_mode: $("#sal-split").value,
+        amount_day_1: parseFloat($("#sal-amount1").value) || 0,
+        amount_day_2: parseFloat($("#sal-amount2").value) || 0,
+        enabled: $("#sal-enabled").value === "1",
+      };
+      $("#sal-save").disabled = true;
+      try {
+        const data = await Api.saveSalary(payload);
+        renderResultado(data);
+        UI.showMessage("ok", "Salário salvo. A previsão do dashboard já considera o novo valor.");
+        $("#sal-msg").textContent = `Líquido estimado: ${formatarMoeda(data.breakdown.net)}.`;
+        $("#sal-msg").className = "form-msg ok";
+      } catch (e) {
+        $("#sal-msg").textContent = e.message;
+        $("#sal-msg").className = "form-msg err";
+        UI.showMessage("err", e.message);
+      } finally {
+        $("#sal-save").disabled = false;
+      }
+    });
   }
 
   // =========================================================
@@ -853,6 +1185,75 @@
         b.addEventListener("click", () => editar(cartoes.find((x) => x.id === Number(b.dataset.edit)))));
       lista.querySelectorAll("[data-del]").forEach((b) =>
         b.addEventListener("click", () => excluir(Number(b.dataset.del))));
+
+      // Seção de faturas: popula o seletor de cartão (preserva a escolha atual).
+      const sel = $("#stmt-card");
+      const sec = $("#statements-section");
+      if (!cartoes.length) {
+        sec.hidden = true;
+      } else {
+        sec.hidden = false;
+        const anterior = sel.value;
+        sel.innerHTML = cartoes
+          .map((c) => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join("");
+        // Mantém o cartão selecionado se ainda existir; senão pega o 1º.
+        sel.value = cartoes.some((c) => String(c.id) === anterior) ? anterior : String(cartoes[0].id);
+        await carregarFaturas(Number(sel.value));
+      }
+    }
+
+    // ---- Faturas: detalhe da atual + próximas (com parcelas futuras) ----
+    async function carregarFaturas(cardId) {
+      const box = $("#statements");
+      box.innerHTML = `<div class="loading-box"><span class="spinner"></span> Carregando faturas…</div>`;
+      try {
+        const data = await Api.getCardStatements(cardId, null, null, 6);
+        renderStatements(data);
+      } catch (e) {
+        box.innerHTML = `<p class="form-msg err">${Utils.escapeHtml(e.message)}</p>`;
+      }
+    }
+
+    function renderStatements(data) {
+      const box = $("#statements");
+      const comGastos = data.statements.filter((s) => s.count > 0);
+      if (!comGastos.length) {
+        box.innerHTML = `<p class="empty">Sem lançamentos neste cartão nas faturas atual e futuras.</p>`;
+        return;
+      }
+      box.innerHTML = comGastos.map((s, i) => {
+        const pct = data.limit_total > 0 ? Math.min(100, (s.total / data.limit_total) * 100) : 0;
+        const linhas = s.items.map((it) => {
+          const parc = it.installments_total > 1
+            ? `<span class="tag" title="Parcela">${it.installment_no}/${it.installments_total}</span>` : "";
+          return `<tr>
+            <td>${formatarData(it.date)}</td>
+            <td>${Utils.escapeHtml(it.description)} ${parc}</td>
+            <td>${Utils.escapeHtml(it.category || "—")}</td>
+            <td>${Utils.escapeHtml(it.spent_by || "—")}</td>
+            <td class="num amount expense">${formatarMoeda(it.amount)}</td>
+          </tr>`;
+        }).join("");
+        // Fatura atual já aberta; futuras começam fechadas.
+        const aberta = s.is_current ? "open" : "";
+        const selo = s.is_current
+          ? `<span class="badge badge-llm">Atual</span>`
+          : `<span class="badge">Futura</span>`;
+        return `
+          <details class="statement" ${aberta}>
+            <summary>
+              <span class="stmt-title">${selo} <strong>${s.label}</strong> <span class="muted">• ${s.count} lançamento(s)</span></span>
+              <span class="stmt-total ${s.total > 0 ? "expense" : ""}">${formatarMoeda(s.total)}</span>
+            </summary>
+            <div class="stmt-bar"><span style="width:${pct}%"></span></div>
+            <div class="table-wrap">
+              <table class="stmt-table">
+                <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Quem</th><th class="num">Valor</th></tr></thead>
+                <tbody>${linhas}</tbody>
+              </table>
+            </div>
+          </details>`;
+      }).join("");
     }
 
     function editar(c) {
@@ -919,6 +1320,8 @@
     });
 
     $("#c-cancel").addEventListener("click", resetCardForm);
+    // Troca de cartão na seção de faturas recarrega só as faturas.
+    $("#stmt-card").addEventListener("change", (e) => carregarFaturas(Number(e.target.value)));
 
     await carregar();
   }
@@ -1654,6 +2057,41 @@
     let itens = [];          // itens da pré-visualização
 
     const todasCategorias = [...new Set([...META.expense_categories, ...META.income_categories])];
+    // Pessoas para o seletor "quem fez o gasto" na prévia (mesma lista do form).
+    const todasPessoas = META.people && META.people.length ? META.people : ["Eu"];
+
+    // Seletor "aplicar quem a todas as linhas" (atalho para extrato de 1 pessoa).
+    const selQuemTodos = $("#prev-quem-todos");
+    if (selQuemTodos) {
+      selQuemTodos.innerHTML = todasPessoas
+        .map((p) => `<option value="${Utils.escapeHtml(p)}">${Utils.escapeHtml(p)}</option>`).join("");
+      selQuemTodos.addEventListener("change", () => {
+        itens.forEach((it) => { it.spent_by = selQuemTodos.value; });
+        renderPreview();
+      });
+    }
+
+    // ---- Origem do extrato: conta x cartão (fatura) ----
+    UI.fillSelect($("#imp-card"), META.cards || []);
+
+    /** Cartão escolhido para o extrato (vazio = extrato de conta). */
+    function cartaoImport() {
+      return $("#imp-source").value === "card" ? ($("#imp-card").value || "") : "";
+    }
+
+    function aplicarFonteImport() {
+      const ehCartao = $("#imp-source").value === "card";
+      $("#imp-card-wrap").hidden = !ehCartao;
+      $("#imp-card-hint").hidden = !ehCartao;
+      // Para extrato de cartão não faz sentido escolher tipo/conta padrão.
+      const mapType = $("#map-type"), mapAcc = $("#map-account");
+      if (mapType) mapType.disabled = ehCartao;
+      if (mapAcc) mapAcc.disabled = ehCartao;
+      // Se já há arquivo carregado, re-processa para refletir a escolha.
+      if (conteudo) iniciarPreview();
+    }
+    $("#imp-source").addEventListener("change", aplicarFonteImport);
+    $("#imp-card").addEventListener("change", () => { if (conteudo) iniciarPreview(); });
 
     // ---- Dropzone + leitura do arquivo ----
     const dz = $("#dropzone");
@@ -1728,9 +2166,12 @@
 
     // ---- Passo 2: pré-visualização ----
     async function rodarPreview(mapping) {
+      // Extrato de cartão: injeta o nome do cartão no mapping (CSV e OFX).
+      const card = cartaoImport();
+      const mp = card ? { ...(mapping || {}), card } : mapping;
       let prev;
       try {
-        prev = await Api.previewImport({ format: formato, content: conteudo, mapping });
+        prev = await Api.previewImport({ format: formato, content: conteudo, mapping: mp });
       } catch (e) { UI.showMessage("err", e.message); return; }
       itens = prev.items || [];
       renderPreview();
@@ -1751,13 +2192,23 @@
         if (it.duplicate) tr.className = "is-dup";
         const cats = todasCategorias.map((c) =>
           `<option value="${Utils.escapeHtml(c)}"${c === it.category_suggested ? " selected" : ""}>${Utils.escapeHtml(c)}</option>`).join("");
+        // Quem fez o gasto: dropdown editável por linha (default = o do item).
+        const quem = todasPessoas.map((p) =>
+          `<option value="${Utils.escapeHtml(p)}"${p === it.spent_by ? " selected" : ""}>${Utils.escapeHtml(p)}</option>`).join("");
+        // Parcela detectada: mostra "N/M" e sinaliza que as futuras serão lançadas.
+        const ehParcelado = Number(it.installments_total) > 1;
+        const parcelaCel = ehParcelado
+          ? `<span class="tag" title="As parcelas seguintes serão lançadas nas próximas faturas">${it.installment_no}/${it.installments_total}</span>`
+          : "—";
         tr.innerHTML = `
           <td><input type="checkbox" data-check="${idx}" ${it.include ? "checked" : ""} /></td>
           <td>${it.date ? formatarData(it.date) : '<span class="cc-due-soon">sem data</span>'}</td>
           <td><span class="tag ${it.type}">${it.type}</span></td>
           <td class="num amount ${it.type}">${formatarMoeda(it.amount)}</td>
           <td>${Utils.escapeHtml(it.description)}</td>
+          <td>${parcelaCel}</td>
           <td><select data-cat="${idx}">${cats}</select></td>
+          <td><select data-quem="${idx}">${quem}</select></td>
           <td>${it.duplicate ? `<span class="cc-due-soon" title="Possível duplicata">${ic("alert-triangle", { size: 16 })}</span>` : "—"}</td>`;
         tbody.appendChild(tr);
       });
@@ -1766,6 +2217,8 @@
         c.addEventListener("change", () => { itens[Number(c.dataset.check)].include = c.checked; }));
       tbody.querySelectorAll("[data-cat]").forEach((s) =>
         s.addEventListener("change", () => { itens[Number(s.dataset.cat)].category = s.value; }));
+      tbody.querySelectorAll("[data-quem]").forEach((s) =>
+        s.addEventListener("change", () => { itens[Number(s.dataset.quem)].spent_by = s.value; }));
       $("#check-all").checked = itens.every((i) => i.include);
     }
 
@@ -1796,6 +2249,11 @@
         spent_by: i.spent_by,
         account: i.account,
         card: i.card,
+        // Parcelamento detectado na fatura (1/1 = à vista).
+        base_description: i.base_description || i.description,
+        installment_no: i.installment_no || 1,
+        installments_total: i.installments_total || 1,
+        project_future: i.project_future !== false,
         include: true,
       }));
       $("#btn-import").disabled = true;
@@ -1889,8 +2347,14 @@
           </div>`).join("");
 
       const f = data.forecast;
-      const previsaoTipo = f.is_projection ? "Projeção para o fim do mês" : "Saldo real (mês fechado)";
+      const previsaoTipo = f.is_projection
+        ? "Saldo previsto = saldo atual + a receber − a pagar"
+        : "Saldo real (mês fechado)";
       const saldoCls = f.projected_balance < 0 ? "expense" : "income";
+      // Em projeção, os números são o que AINDA falta entrar/sair; em mês
+      // fechado, são os totais reais do mês.
+      const rotuloIn = f.is_projection ? "ainda a receber" : "receita do mês";
+      const rotuloOut = f.is_projection ? "ainda a pagar" : "despesa do mês";
 
       const fonte = data.llm_used ? "IA Groq + score determinístico" : "Score determinístico (IA não configurada)";
 
@@ -1919,8 +2383,8 @@
           <p class="muted" style="margin:0 0 10px">${previsaoTipo}</p>
           <span class="kpi-value ${saldoCls}" style="font-size:2.2em">${formatarMoeda(f.projected_balance)}</span>
           <div class="account-flow" style="margin-top:12px">
-            <span class="up">${ic("arrow-up", { size: 13 })} receita prevista ${formatarMoeda(f.projected_income)}</span>
-            <span class="down">${ic("arrow-down", { size: 13 })} despesa prevista ${formatarMoeda(f.projected_expense)}</span>
+            <span class="up">${ic("arrow-up", { size: 13 })} ${rotuloIn} ${formatarMoeda(f.projected_income)}</span>
+            <span class="down">${ic("arrow-down", { size: 13 })} ${rotuloOut} ${formatarMoeda(f.projected_expense)}</span>
           </div>
         </section>
 
@@ -1955,14 +2419,38 @@
       requestAnimationFrame(passo);
     }
 
+    /** Aviso amigável quando a IA (Groq) não está configurada. */
+    function bannerSemChave() {
+      return `
+        <section class="card" style="border-left:4px solid var(--warning)">
+          <div class="insight-head">
+            <h3><span style="color:var(--warning)">${ic("alert-triangle", { size: 17 })}</span> IA personalizada não configurada</h3>
+          </div>
+          <p>O score e a previsão abaixo são calculados localmente (sem IA). Para
+          receber conselhos personalizados em linguagem natural, crie uma chave
+          gratuita em <strong>console.groq.com</strong> e adicione ao arquivo
+          <code>.env</code> na raiz do projeto:</p>
+          <pre style="background:var(--bg-soft);padding:10px;border-radius:8px;overflow:auto"><code>GROQ_API_KEY=gsk_sua_chave_aqui</code></pre>
+          <p class="muted">Depois reinicie a API. Sem a chave, tudo continua funcionando com as regras offline.</p>
+        </section>`;
+    }
+
     async function load() {
       const { year, month } = getPeriod();
       const out = $("#gestor-output");
       out.innerHTML = `<div class="loading-box"><span class="spinner"></span> Calculando sua saúde financeira… (a IA pode levar alguns segundos)</div>`;
       try {
-        const data = await Api.getHealthScore(year, month);
+        // Status da IA e score em paralelo (o status é opcional).
+        const [status, data] = await Promise.all([
+          Api.getAIStatus(),
+          Api.getHealthScore(year, month),
+        ]);
         UI.clearStatus();
         render(data);
+        // Se a Groq não está configurada, mostra o passo-a-passo no topo.
+        if (status && !status.groq_configured) {
+          out.insertAdjacentHTML("afterbegin", bannerSemChave());
+        }
         animar(out);
       } catch (e) {
         out.innerHTML = `<p class="form-msg err">${ic("alert-triangle", { size: 15 })} ${Utils.escapeHtml(e.message)}</p>`;

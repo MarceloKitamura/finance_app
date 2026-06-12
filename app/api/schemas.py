@@ -46,23 +46,59 @@ class TransactionCreate(BaseModel):
     spent_by: str = Field(default=DEFAULT_PERSON, description="Quem realizou o gasto.")
     account: str = Field(default="Carteira", description="Conta/saldo afetado.")
     card: str = Field(default="", description="Cartão de crédito usado (vazio = nenhum).")
+    payment_origin: Optional[str] = Field(
+        default=None,
+        description=(
+            "Origem do gasto: 'account' (sai do saldo) ou 'card' (entra na "
+            "fatura). Se omitido, é deduzida pela presença do cartão."
+        ),
+    )
+    installments: int = Field(
+        default=1, ge=1, le=72,
+        description="Nº de parcelas (só para gasto no cartão; 1 = à vista).",
+    )
 
     # Exemplo que aparece na documentação /docs.
     model_config = {
         "json_schema_extra": {
             "example": {
-                "date": "2026-06-02",
-                "description": "Mercado Extra",
-                "amount": 150.90,
+                "date": "2026-06-10",
+                "description": "Celular",
+                "amount": 1200.00,
                 "type": "despesa",
-                "category": "Mercado",
+                "category": "Compras",
                 "payment_method": "Crédito",
                 "spent_by": "Eu",
                 "account": "Nubank",
                 "card": "Nubank",
+                "payment_origin": "card",
+                "installments": 12,
             }
         }
     }
+
+
+class TransactionUpdate(BaseModel):
+    """Dados para editar uma transação existente (PUT /transactions/{id}).
+
+    Edita UMA transação no lugar, sem reparcelar nem trocar o id. Útil sobretudo
+    para corrigir o VALOR de uma parcela (ex.: centavos da última). Campos
+    omitidos mantêm o valor atual; a metadata de parcela é preservada no service.
+    Não há `installments` aqui de propósito: editar não recria as parcelas.
+    """
+
+    date: Optional[date_type] = Field(None, description="Data (YYYY-MM-DD).")
+    description: Optional[str] = Field(None, min_length=1)
+    amount: Optional[float] = Field(None, gt=0, description="Valor positivo.")
+    type: Optional[str] = Field(None, description="'receita' ou 'despesa'.")
+    category: Optional[str] = Field(None, min_length=1)
+    payment_method: Optional[str] = None
+    spent_by: Optional[str] = None
+    account: Optional[str] = None
+    card: Optional[str] = None
+    payment_origin: Optional[str] = Field(
+        None, description="'account' ou 'card' (se omitido, mantém a atual)."
+    )
 
 
 # ---------- Saída ----------
@@ -80,6 +116,10 @@ class TransactionOut(BaseModel):
     spent_by: str
     account: str
     card: str
+    payment_origin: str
+    installment_no: int
+    installments_total: int
+    purchase_group: str
     created_at: str
 
     @classmethod
@@ -100,6 +140,10 @@ class TransactionOut(BaseModel):
             spent_by=t.spent_by,
             account=t.account,
             card=t.card,
+            payment_origin=t.payment_origin,
+            installment_no=t.installment_no,
+            installments_total=t.installments_total,
+            purchase_group=t.purchase_group,
             created_at=t.created_at,
         )
 
@@ -208,6 +252,40 @@ class CardOut(BaseModel):
     days_until_due: int     # dias até o próximo vencimento
 
 
+class CardStatementItemOut(BaseModel):
+    """Um lançamento dentro de uma fatura do cartão."""
+
+    id: int
+    date: str
+    description: str
+    amount: float
+    category: str
+    spent_by: str
+    installment_no: int
+    installments_total: int
+
+
+class CardStatementOut(BaseModel):
+    """Uma fatura (mês) do cartão, com seus lançamentos."""
+
+    year: int
+    month: int
+    label: str            # "Junho/2026"
+    total: float
+    count: int
+    is_current: bool      # é a fatura do mês atual?
+    items: List[CardStatementItemOut]
+
+
+class CardStatementsOut(BaseModel):
+    """Fatura atual + próximas faturas de um cartão."""
+
+    card_id: int
+    card_name: str
+    limit_total: float
+    statements: List[CardStatementOut]
+
+
 class MessageOut(BaseModel):
     """Resposta genérica de confirmação."""
 
@@ -302,6 +380,19 @@ class CategorySuggestionOut(BaseModel):
 
     category: Optional[str]
     confidence: float
+
+
+class AIStatusOut(BaseModel):
+    """Estado das integrações de IA (para o frontend avisar se falta chave).
+
+    O app funciona SEM chave (regras offline + categorização por palavras-chave);
+    estas flags só dizem se os recursos de LLM estão disponíveis.
+    """
+
+    groq_configured: bool      # conselhos personalizados (GROQ_API_KEY)
+    openai_configured: bool    # categorização via LLM (OPENAI_API_KEY)
+    advice_provider: str       # "groq" | "offline"
+    category_provider: str     # "openai" | "offline"
 
 
 # ---------- Gastos recorrentes (Fase 3) ----------
@@ -490,6 +581,12 @@ class ImportPreviewItemOut(BaseModel):
     spent_by: str
     account: str
     card: str
+    # Parcelamento detectado na fatura (1/1 = à vista). base_description é a
+    # descrição sem o "N/M"; project_future liga a projeção das próximas parcelas.
+    base_description: str = ""
+    installment_no: int = 1
+    installments_total: int = 1
+    project_future: bool = False
     duplicate: bool
     include: bool
 
@@ -515,6 +612,12 @@ class ImportConfirmItemIn(BaseModel):
     spent_by: str = DEFAULT_PERSON
     account: str = "Carteira"
     card: str = ""
+    # Parcelamento (só para linha de fatura de cartão). installments_total > 1
+    # faz o service gravar a parcela e projetar as próximas faturas.
+    base_description: str = ""
+    installment_no: int = 1
+    installments_total: int = 1
+    project_future: bool = True
     include: bool = True
 
 
@@ -562,3 +665,99 @@ class HealthScoreOut(BaseModel):
     forecast: ForecastOut
     insights: List[InsightOut]
     llm_used: bool
+
+
+# ---------- Salário (bruto / líquido / divisão) ----------
+
+class OtherDiscountIn(BaseModel):
+    """Um desconto avulso do salário (plano de saúde, pensão, etc.)."""
+
+    label: str = Field(..., min_length=1, description="Nome do desconto.")
+    amount: float = Field(..., ge=0, description="Valor mensal do desconto (R$).")
+
+
+class SalaryConfigIn(BaseModel):
+    """Configuração de salário enviada pelo cliente (PUT /salary)."""
+
+    gross: float = Field(default=0.0, ge=0, description="Salário bruto mensal.")
+    dependents: int = Field(default=0, ge=0, description="Nº de dependentes (IRRF).")
+    inss_enabled: bool = Field(default=True, description="Descontar INSS?")
+    irrf_enabled: bool = Field(default=True, description="Descontar IRRF?")
+    vt_enabled: bool = Field(default=False, description="Descontar vale-transporte?")
+    vt_monthly_cost: float = Field(default=0.0, ge=0, description="Custo real do VT (0 = teto de 6%).")
+    other_discounts: List[OtherDiscountIn] = Field(default_factory=list)
+    pay_day_1: int = Field(default=15, ge=1, le=31, description="1º dia de pagamento.")
+    pay_day_2: int = Field(default=30, ge=1, le=31, description="2º dia de pagamento.")
+    split_mode: str = Field(default="metade", description="'metade' (50/50) ou 'personalizado'.")
+    amount_day_1: float = Field(default=0.0, ge=0, description="Valor líquido no 1º dia (modo personalizado).")
+    amount_day_2: float = Field(default=0.0, ge=0, description="Valor líquido no 2º dia (modo personalizado).")
+    enabled: bool = Field(default=True, description="Usar o salário na previsão?")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "gross": 3500.0, "dependents": 0, "vt_enabled": True,
+                "vt_monthly_cost": 0.0, "other_discounts": [{"label": "Plano de saúde", "amount": 120.0}],
+                "pay_day_1": 15, "pay_day_2": 30, "split_mode": "metade", "enabled": True,
+            }
+        }
+    }
+
+
+class SalaryBreakdownOut(BaseModel):
+    """Detalhamento do cálculo do líquido."""
+
+    gross: float
+    inss: float
+    irrf: float
+    vt: float
+    other_discounts: float
+    other_discounts_detail: List[Dict]
+    total_discounts: float
+    net: float
+
+
+class SalarySplitOut(BaseModel):
+    """Divisão do líquido nos dias de recebimento."""
+
+    net: float
+    pay_day_1: int
+    pay_day_2: int
+    amount_day_1: float
+    amount_day_2: float
+    split_mode: str
+
+
+class SalaryOut(BaseModel):
+    """Resposta de GET/PUT /salary: config + descontos + divisão."""
+
+    config: Dict
+    breakdown: SalaryBreakdownOut
+    split: SalarySplitOut
+    enabled: bool
+
+
+# ---------- Previsão financeira do mês ----------
+
+class MonthlyForecastOut(BaseModel):
+    """Previsão determinística do saldo de fim de mês (GET /forecast)."""
+
+    year: int
+    month: int
+    is_projection: bool
+    current_balance: float
+    future_incomes: float
+    future_salary: float
+    future_expenses: float
+    future_recurring: float
+    future_vencimentos: float
+    future_card: float
+    card_detail: List[Dict]
+    remaining_to_receive: float
+    remaining_to_pay: float
+    projected_balance: float
+    expected_income_month: float
+    status: str                  # positivo | atencao | risco
+    salary: Dict                 # líquido + parcelas (dias 15/30)
+    recurring_detail: List[Dict]
+    vencimentos_detail: List[Dict]

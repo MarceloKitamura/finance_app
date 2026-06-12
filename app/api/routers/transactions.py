@@ -16,7 +16,12 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_transaction_service
-from app.api.schemas import MessageOut, TransactionCreate, TransactionOut
+from app.api.schemas import (
+    MessageOut,
+    TransactionCreate,
+    TransactionOut,
+    TransactionUpdate,
+)
 from app.services.transaction_service import TransactionService
 from app.utils.date_utils import format_iso
 
@@ -81,6 +86,10 @@ def create_transaction(
 
     Convertemos a data (objeto date) para o formato interno ISO que o
     service espera.
+
+    Para gasto no cartão parcelado (payment_origin='card', installments>1),
+    o service cria UMA transação por parcela nas faturas futuras; aqui
+    devolvemos a 1ª parcela como representante (o cliente recarrega a lista).
     """
     transaction = service.add_transaction(
         date=format_iso(payload.date),
@@ -92,8 +101,54 @@ def create_transaction(
         spent_by=payload.spent_by,
         account=payload.account,
         card=payload.card,
+        payment_origin=payload.payment_origin,
+        installments=payload.installments,
     )
     return TransactionOut.from_entity(transaction)
+
+
+@router.put("/{transaction_id}", response_model=TransactionOut)
+def update_transaction(
+    transaction_id: int,
+    payload: TransactionUpdate,
+    apply_to_group: bool = Query(
+        default=False,
+        description=(
+            "True = propaga quem gastou/categoria/pagamento/conta/cartão para "
+            "TODAS as parcelas da mesma compra (mantém valor/data de cada uma)."
+        ),
+    ),
+    service: TransactionService = Depends(get_transaction_service),
+):
+    """Edita uma transação no lugar (sem reparcelar nem trocar o id).
+
+    Campos omitidos mantêm o valor atual. A metadata de parcela é preservada
+    pelo service — então dá para ajustar só o valor de uma parcela (ex.: os
+    centavos da última) sem desfazer o vínculo da compra. Com apply_to_group=True,
+    os campos compartilhados (ex.: "quem gastou") valem para a compra inteira.
+    404 se o id não existe.
+    """
+    transaction = service.get_transaction(transaction_id)
+    if transaction is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Transação {transaction_id} não encontrada.",
+        )
+    updated = service.update_transaction(
+        transaction_id,
+        date=format_iso(payload.date) if payload.date is not None else None,
+        description=payload.description,
+        amount=payload.amount,
+        type_=payload.type,
+        category=payload.category,
+        payment_method=payload.payment_method,
+        spent_by=payload.spent_by,
+        account=payload.account,
+        card=payload.card,
+        payment_origin=payload.payment_origin,
+        apply_to_group=apply_to_group,
+    )
+    return TransactionOut.from_entity(updated)
 
 
 @router.delete("/{transaction_id}", response_model=MessageOut)

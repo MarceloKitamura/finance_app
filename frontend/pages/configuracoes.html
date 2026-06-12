@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Configurações — Finance App</title>
-  <link rel="stylesheet" href="../css/style.css" />
-  <link rel="stylesheet" href="../css/light-theme.css" />
-  <link rel="stylesheet" href="../css/cards.css" />
-  <link rel="stylesheet" href="../css/dashboard.css" />
-  <link rel="stylesheet" href="../css/responsive.css" />
-  <script src="../js/theme.js"></script>
+  <link rel="stylesheet" href="../css/style.css?v=4" />
+  <link rel="stylesheet" href="../css/light-theme.css?v=4" />
+  <link rel="stylesheet" href="../css/cards.css?v=4" />
+  <link rel="stylesheet" href="../css/dashboard.css?v=4" />
+  <link rel="stylesheet" href="../css/responsive.css?v=4" />
+  <script src="../js/theme.js?v=4"></script>
 </head>
 <body data-page="configuracoes">
   <aside id="sidebar"></aside>
@@ -65,6 +65,89 @@
         <div class="account-manage-list" id="acc-list" style="margin-top:16px"></div>
       </section>
 
+      <!-- SALÁRIO (bruto -> líquido + divisão 15/30) -->
+      <section class="card">
+        <div class="card-head"><h2>Salário</h2></div>
+        <p class="muted" style="margin-bottom:14px">
+          Informe seu salário bruto e os descontos. O sistema estima o líquido
+          (INSS, IRRF, vale-transporte e descontos avulsos) e usa esse valor na
+          <strong>Previsão do mês</strong> do dashboard.
+        </p>
+
+        <form id="sal-form" class="form">
+          <div class="row">
+            <label class="field">Salário bruto (R$)
+              <input type="number" id="sal-gross" step="0.01" min="0" value="0" />
+            </label>
+            <label class="field">Dependentes (IRRF)
+              <input type="number" id="sal-dependents" step="1" min="0" value="0" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Descontar INSS?
+              <select id="sal-inss"><option value="1" selected>Sim</option><option value="0">Não</option></select>
+            </label>
+            <label class="field">Descontar IRRF?
+              <select id="sal-irrf"><option value="1" selected>Sim</option><option value="0">Não</option></select>
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field">Vale-transporte?
+              <select id="sal-vt"><option value="0" selected>Não</option><option value="1">Sim</option></select>
+            </label>
+            <label class="field">Custo mensal do VT (R$, 0 = teto 6%)
+              <input type="number" id="sal-vt-cost" step="0.01" min="0" value="0" />
+            </label>
+          </div>
+
+          <label class="field">Outros descontos (opcional)
+            <input type="text" id="sal-others" placeholder="Ex: Plano de saúde:120; Pensão:300" />
+          </label>
+          <p class="muted" style="font-size:.78rem;margin:-4px 0 8px">
+            Formato: <code>Nome:valor</code>, separados por <code>;</code>.
+          </p>
+
+          <div class="row">
+            <label class="field">Recebimento — 1º dia
+              <input type="number" id="sal-day1" step="1" min="1" max="31" value="15" />
+            </label>
+            <label class="field">Recebimento — 2º dia
+              <input type="number" id="sal-day2" step="1" min="1" max="31" value="30" />
+            </label>
+          </div>
+
+          <label class="field">Divisão do recebimento
+            <select id="sal-split">
+              <option value="metade" selected>Metade em cada dia (50% / 50%)</option>
+              <option value="personalizado">Valores personalizados</option>
+            </select>
+          </label>
+
+          <div class="row" id="sal-custom-wrap" hidden>
+            <label class="field">Líquido no 1º dia (R$)
+              <input type="number" id="sal-amount1" step="0.01" min="0" value="0" />
+            </label>
+            <label class="field">Líquido no 2º dia (R$)
+              <input type="number" id="sal-amount2" step="0.01" min="0" value="0" />
+            </label>
+          </div>
+
+          <label class="field">Usar salário na previsão?
+            <select id="sal-enabled"><option value="1" selected>Sim</option><option value="0">Não</option></select>
+          </label>
+
+          <div class="flex gap">
+            <button type="submit" id="sal-save" class="btn btn-primary"><i data-icon="save"></i> Salvar salário</button>
+          </div>
+          <p id="sal-msg" class="form-msg"></p>
+        </form>
+
+        <!-- Resumo do líquido calculado -->
+        <div class="account-manage-list" id="sal-result" style="margin-top:16px"></div>
+      </section>
+
       <section class="card">
         <h2>Listas do sistema</h2>
         <p class="muted">
@@ -101,10 +184,10 @@
   <div id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="../js/icons.js"></script>
-  <script src="../js/utils.js"></script>
-  <script src="../js/api.js"></script>
-  <script src="../js/ui.js"></script>
-  <script src="../js/app.js"></script>
+  <script src="../js/icons.js?v=4"></script>
+  <script src="../js/utils.js?v=4"></script>
+  <script src="../js/api.js?v=4"></script>
+  <script src="../js/ui.js?v=4"></script>
+  <script src="../js/app.js?v=4"></script>
 </body>
 </html>

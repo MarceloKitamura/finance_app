@@ -205,3 +205,52 @@
 .metric-bar-fill.ok { background: var(--primary); }
 .metric-bar-fill.warning { background: var(--warning, #F59E0B); }
 .metric-bar-fill.danger { background: var(--danger, #EF4444); }
+
+/* =========================================================
+   PREVISÃO DO MÊS (bloco do dashboard)
+   A cor de destaque muda conforme o status da previsão:
+   is-pos (positivo/azul-verde), is-warn (amarelo), is-neg (vermelho).
+   ========================================================= */
+.forecast-card { border-left: 4px solid var(--info); }
+.forecast-card.is-pos  { border-left-color: var(--primary); }
+.forecast-card.is-warn { border-left-color: var(--warning); }
+.forecast-card.is-neg  { border-left-color: var(--danger); }
+
+/* Selo de status no cabeçalho do card. */
+.forecast-badge {
+  font-size: .78rem; font-weight: 700; padding: 4px 10px;
+  border-radius: 999px; white-space: nowrap;
+}
+.forecast-badge.is-pos  { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); }
+.forecast-badge.is-warn { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.forecast-badge.is-neg  { background: color-mix(in srgb, var(--danger) 18%, transparent);  color: var(--danger); }
+
+/* Destaque do saldo previsto. */
+.fc-hero {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 16px; border-radius: var(--radius-sm); margin-bottom: 14px;
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+.fc-hero.is-pos  { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.fc-hero.is-warn { background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.fc-hero.is-neg  { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.fc-hero-label { font-size: .82rem; color: var(--muted); }
+.fc-hero-value { font-size: 2rem; font-weight: 800; }
+.fc-hero.is-pos  .fc-hero-value { color: var(--primary); }
+.fc-hero.is-warn .fc-hero-value { color: var(--warning); }
+.fc-hero.is-neg  .fc-hero-value { color: var(--danger); }
+
+/* Linhas de detalhamento (saldo atual, falta receber/pagar, salário). */
+.fc-grid, .fc-salary { display: flex; flex-direction: column; gap: 2px; }
+.fc-salary { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.fc-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; font-size: .92rem;
+}
+.fc-item > span:first-child { color: var(--muted); }
+.fc-item.fc-sub { padding: 3px 0 3px 12px; font-size: .85rem; }
+.fc-item.fc-sub > span { color: var(--muted); }
+.fc-item .income { color: var(--primary); }
+.fc-item .expense { color: var(--danger); }
+.fc-item a { color: var(--info); }
+.fc-note { margin-top: 12px; font-size: .8rem; }

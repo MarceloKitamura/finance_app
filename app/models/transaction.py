@@ -21,6 +21,11 @@ from app.constants.transaction_types import (  # noqa: F401
     VALID_TYPES,
 )
 from app.constants.payment_methods import PAYMENT_METHODS
+from app.constants.payment_origins import (  # noqa: F401
+    PAYMENT_ORIGIN_ACCOUNT,
+    PAYMENT_ORIGIN_CARD,
+    VALID_PAYMENT_ORIGINS,
+)
 from app.constants.people import DEFAULT_PERSON
 
 
@@ -54,6 +59,17 @@ class Transaction:
     account: str = "Carteira"
     # Cartão de crédito usado (ex: "Nubank"). Vazio = não foi no cartão.
     card: str = ""
+    # Origem do pagamento: "account" (sai do saldo) ou "card" (entra na
+    # fatura). É a regra que diferencia gasto na conta x gasto no cartão.
+    payment_origin: str = PAYMENT_ORIGIN_ACCOUNT
+    # Parcelamento (só faz sentido no cartão). Para gastos à vista/conta,
+    # installment_no = installments_total = 1.
+    installment_no: int = 1
+    installments_total: int = 1
+    # Agrupa as parcelas de uma MESMA compra (ex: "Celular 1/12 ... 12/12").
+    # Vazio para gastos sem parcelamento. Permite editar/excluir a compra
+    # inteira no futuro.
+    purchase_group: str = ""
     id: Optional[int] = None
     created_at: str = field(
         default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -89,6 +105,43 @@ class Transaction:
             raise ValueError("O campo 'quem gastou' não pode ser vazio.")
         if not self.account.strip():
             raise ValueError("A conta (saldo) não pode ser vazia.")
+
+        # ----- Regras de origem do pagamento (conta x cartão) -----
+        if self.payment_origin not in VALID_PAYMENT_ORIGINS:
+            raise ValueError(
+                "Escolha se o gasto foi feito na conta ou no cartão "
+                f"(origem inválida: {self.payment_origin!r})."
+            )
+
+        if self.payment_origin == PAYMENT_ORIGIN_CARD:
+            # Gasto no cartão precisa de um cartão e não pode ser receita.
+            if self.type == TYPE_INCOME:
+                raise ValueError("Receita não pode ter origem no cartão de crédito.")
+            if not self.card.strip():
+                raise ValueError(
+                    "Para um gasto no cartão, escolha qual cartão foi usado."
+                )
+        else:  # PAYMENT_ORIGIN_ACCOUNT
+            # Gasto direto da conta não pode estar amarrado a um cartão
+            # (não pode ser conta e cartão ao mesmo tempo).
+            if self.card.strip():
+                raise ValueError(
+                    "Um gasto direto da conta não pode ter cartão de crédito. "
+                    "Escolha apenas uma origem: conta OU cartão."
+                )
+            # Parcelamento só existe no cartão.
+            if self.installments_total != 1:
+                raise ValueError(
+                    "Parcelamento só é permitido em gastos no cartão de crédito."
+                )
+
+        # Parcelas: quantidade >= 1 e número da parcela dentro do intervalo.
+        if self.installments_total < 1:
+            raise ValueError("A quantidade de parcelas deve ser pelo menos 1.")
+        if not (1 <= self.installment_no <= self.installments_total):
+            raise ValueError(
+                f"Parcela inválida: {self.installment_no}/{self.installments_total}."
+            )
 
         # Valida formato ISO da data.
         try:

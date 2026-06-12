@@ -131,6 +131,82 @@ def _safe_iso(y: str, mo: str, d: str) -> Optional[str]:
 
 
 # ───────────────────────────────────────────────────────────
+# Parcelamento (detecção na descrição da fatura)
+# ───────────────────────────────────────────────────────────
+# Faturas de cartão costumam anexar a parcela à descrição da compra:
+#   "NETFLIX.COM 03/12", "MAGALU PARC 02/10", "LOJA X PARCELA 3 DE 12".
+# Detectar isso permite lançar a compra PARCELADA (com as parcelas futuras),
+# em vez de tratar cada linha como uma compra à vista isolada.
+#
+# Como ESTES parsers não conhecem regra de negócio, aqui só EXTRAÍMOS a
+# informação (base + nº/total da parcela). Quem decide o que fazer com ela
+# (gerar faturas futuras, deduplicar) é o ImportService/TransactionService.
+
+# Cartão parcela em no máximo ~72x. Acima disso é quase certo que "N/M" é uma
+# data (ex.: 12/2025) e não uma parcela — limite defensivo contra falso positivo.
+_MAX_INSTALLMENTS = 72
+
+# "N/M" (com ou sem zeros à esquerda). É ambíguo com data, então só vale como
+# parcela com a palavra "parc"/"parcela" perto OU no fim da descrição.
+_PARC_SLASH_RE = re.compile(r"(\d{1,2})\s*/\s*(\d{1,2})")
+# "N de M" (ex.: "3 de 12", "parcela 3 de 12") — sinal forte, pouco ambíguo.
+_PARC_DE_RE = re.compile(r"\b(\d{1,2})\s+de\s+(\d{1,2})\b", re.IGNORECASE)
+
+
+def parse_installment(description: str) -> Optional[dict]:
+    """Detecta parcela "N/M" (ou "N de M") na descrição de uma linha de fatura.
+
+    Devolve {"base", "installment_no", "installments_total"} quando reconhece
+    uma parcela plausível (1 <= N <= M e 2 <= M <= 72); senão, None. `base` é a
+    descrição sem o trecho da parcela (ex.: "NETFLIX.COM").
+
+    Conservador de propósito: como "03/12" também pode ser uma data, a forma
+    com barra só é aceita quando vem com "parc"/"parcela" por perto OU no FIM
+    da descrição (padrão das faturas). O usuário ainda revê tudo na prévia.
+    """
+    if not description:
+        return None
+    text = " ".join(str(description).split())
+
+    # 1) "N de M" — aceito sempre (sinal forte).
+    m = _PARC_DE_RE.search(text)
+    if m:
+        result = _installment_from_match(text, m)
+        if result:
+            return result
+
+    # 2) "N/M" — só com palavra-chave por perto ou no fim da linha.
+    for m in _PARC_SLASH_RE.finditer(text):
+        n, total = int(m.group(1)), int(m.group(2))
+        if not (1 <= n <= total and 2 <= total <= _MAX_INSTALLMENTS):
+            continue
+        before = text[max(0, m.start() - 9):m.start()]
+        has_keyword = bool(re.search(r"parc", before, re.IGNORECASE))
+        at_end = text[m.end():].strip(" )].-") == ""
+        if has_keyword or at_end:
+            result = _installment_from_match(text, m)
+            if result:
+                return result
+    return None
+
+
+def _installment_from_match(text: str, m: "re.Match") -> Optional[dict]:
+    """Valida o casamento e monta o dict de parcela (ou None)."""
+    n, total = int(m.group(1)), int(m.group(2))
+    if not (1 <= n <= total and 2 <= total <= _MAX_INSTALLMENTS):
+        return None
+    # Remove o trecho da parcela e a palavra "parc/parcela" que o antecede.
+    base = (text[:m.start()] + " " + text[m.end():])
+    base = re.sub(r"\bparc(?:ela)?\.?\s*$", "", base.strip(), flags=re.IGNORECASE)
+    base = " ".join(base.strip(" -–—.,/").split())
+    return {
+        "base": base or text,
+        "installment_no": n,
+        "installments_total": total,
+    }
+
+
+# ───────────────────────────────────────────────────────────
 # OFX
 # ───────────────────────────────────────────────────────────
 

@@ -20,10 +20,12 @@ from app.services.ai_service import AIService
 from app.services.alert_service import AlertService
 from app.services.card_service import CardService
 from app.services.financial_advisor_service import FinancialAdvisorService
+from app.services.forecast_service import ForecastService
 from app.services.goal_service import GoalService
 from app.services.import_service import ImportService
 from app.services.recurring_service import RecurringService
 from app.services.report_service import ReportService
+from app.services.salary_service import SalaryService
 from app.services.transaction_service import TransactionService
 from app.services.vencimento_service import VencimentoService
 
@@ -59,10 +61,21 @@ def get_alert_service() -> AlertService:
 
 
 @lru_cache
+def get_salary_service() -> SalaryService:
+    return SalaryService()
+
+
+@lru_cache
+def get_forecast_service() -> ForecastService:
+    return ForecastService()
+
+
+@lru_cache
 def get_advisor_service() -> FinancialAdvisorService:
     # use_llm=True liga o conselho personalizado via Groq. Sem GROQ_API_KEY,
     # o service ignora a IA e segue só com as regras determinísticas.
-    return FinancialAdvisorService(use_llm=True)
+    # O forecast_service deixa a IA ciente da previsão de fim de mês.
+    return FinancialAdvisorService(use_llm=True, forecast_service=ForecastService())
 
 
 @lru_cache

@@ -48,6 +48,10 @@ def initialize_database() -> None:
         spent_by TEXT NOT NULL DEFAULT 'Eu',
         account TEXT NOT NULL DEFAULT 'Carteira',
         card TEXT NOT NULL DEFAULT '',
+        payment_origin TEXT NOT NULL DEFAULT 'account',
+        installment_no INTEGER NOT NULL DEFAULT 1,
+        installments_total INTEGER NOT NULL DEFAULT 1,
+        purchase_group TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL
     );
     """
@@ -119,6 +123,17 @@ def initialize_database() -> None:
     );
     """
 
+    # Tabela genérica de configurações (chave -> valor JSON). Hoje guarda a
+    # configuração de salário (chave "salary_config"); ver SettingsRepository.
+    # Usar JSON evita criar uma coluna/tabela nova a cada preferência futura.
+    create_settings_sql = """
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
+    );
+    """
+
     # Tabela da agenda de vencimentos / fluxo de caixa (Fase 3).
     create_vencimentos_sql = """
     CREATE TABLE IF NOT EXISTS vencimentos (
@@ -146,6 +161,7 @@ def initialize_database() -> None:
         conn.execute(create_goals_sql)
         conn.execute(create_recurring_sql)
         conn.execute(create_vencimentos_sql)
+        conn.execute(create_settings_sql)
         _run_migrations(conn)
         _seed_default_account(conn)
 
@@ -184,6 +200,39 @@ def _run_migrations(conn: Connection) -> None:
         # Transações antigas não tinham cartão associado (string vazia).
         conn.execute(
             "ALTER TABLE transactions ADD COLUMN card TEXT NOT NULL DEFAULT ''"
+        )
+
+    # --- Origem do pagamento (conta x cartão) + parcelamento ---
+    if "payment_origin" not in existing_columns:
+        conn.execute(
+            "ALTER TABLE transactions "
+            "ADD COLUMN payment_origin TEXT NOT NULL DEFAULT 'account'"
+        )
+        # Backfill: transações antigas com cartão preenchido eram, na prática,
+        # gastos no cartão. Marcamos a origem como 'card' para que parem de
+        # descontar do saldo da conta (novo comportamento correto). As demais
+        # ficam como 'account' (padrão da coluna).
+        conn.execute(
+            "UPDATE transactions SET payment_origin = 'card' "
+            "WHERE card IS NOT NULL AND card <> '' AND type = 'despesa'"
+        )
+
+    if "installment_no" not in existing_columns:
+        conn.execute(
+            "ALTER TABLE transactions "
+            "ADD COLUMN installment_no INTEGER NOT NULL DEFAULT 1"
+        )
+
+    if "installments_total" not in existing_columns:
+        conn.execute(
+            "ALTER TABLE transactions "
+            "ADD COLUMN installments_total INTEGER NOT NULL DEFAULT 1"
+        )
+
+    if "purchase_group" not in existing_columns:
+        conn.execute(
+            "ALTER TABLE transactions "
+            "ADD COLUMN purchase_group TEXT NOT NULL DEFAULT ''"
         )
 
 
